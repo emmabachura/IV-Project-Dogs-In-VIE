@@ -1,13 +1,17 @@
 from pathlib import Path
 import pandas as pd
+import regex as re
 
-
-RAW_DIR = Path("data/raw")
-PROCESSED_DIR = Path("data/processed")
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+RAW_DIR = PROJECT_ROOT / "data" / "raw"
+PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 PROCESSED_DIR.mkdir(parents=True, exist_ok=True)
 
-INPUT_FILE = RAW_DIR / "hunde-wien-raw.csv"
-OUTPUT_FILE = PROCESSED_DIR / "dogs_vienna_clean.csv"
+INPUT_FILE_DOGS = RAW_DIR / "hunde-wien-raw.csv"
+OUTPUT_FILE_DOGS = PROCESSED_DIR / "dogs_clean.csv"
+
+INPUT_FILE_ZONES = RAW_DIR / "hunde-zonen-raw.csv"
+OUTPUT_FILE_ZONES = PROCESSED_DIR / "zones_clean.csv"
 
 
 def extract_district_from_postal_code(postal_code):
@@ -32,11 +36,11 @@ def extract_district_from_postal_code(postal_code):
 def clean_dogs_vienna():
     # First row is only a title, so skip it.
     df = pd.read_csv(
-        INPUT_FILE,
+        INPUT_FILE_DOGS,
         sep=";",
         skiprows=1,
         dtype=str,
-        encoding="utf-8"
+        encoding="ISO-8859-1"
     )
 
     df.columns = (
@@ -72,8 +76,8 @@ def clean_dogs_vienna():
 
     df = df[["district", "postal_code", "breed", "dog_count", "ref_date"]]
 
-    df.to_csv(OUTPUT_FILE, index=False)
-    print(f"Saved clean file to: {OUTPUT_FILE}")
+    df.to_csv(OUTPUT_FILE_DOGS, index=False)
+    print(f"Saved clean file to: {OUTPUT_FILE_DOGS}")
 
 def parse_area_m2(value):
     """
@@ -138,7 +142,7 @@ def clean_yes_no(value):
 
 def clean_dog_zones():
     df = pd.read_csv(
-        DOG_ZONES_FILE,
+        INPUT_FILE_ZONES,
         sep=",",
         dtype=str,
         encoding="utf-8"
@@ -202,9 +206,10 @@ def clean_dog_zones():
     # You can comment this out if you want to inspect missing area values later.
     df_clean = df_clean.dropna(subset=["area_m2"])
     df_clean = df_clean.sort_values("area_m2", ascending=False)
-    df_clean.to_csv(CLEAN_DOG_ZONES_FILE, index=False)
-    print(f"Saved: {CLEAN_DOG_ZONES_FILE}")
+    df_clean.to_csv(OUTPUT_FILE_ZONES, index=False)
+    print(f"Saved: {OUTPUT_FILE_ZONES}")
 
 if __name__ == "__main__":
     clean_dogs_vienna()
     clean_dog_zones()
+
