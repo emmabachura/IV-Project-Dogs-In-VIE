@@ -7,6 +7,90 @@ L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     subdomains: 'abcd'
 }).addTo(map);
 
+Promise.all([
+    fetch("/api/districts").then(response => {
+        if (!response.headers.get("content-type").includes("application/json")) {
+            throw new Error("District API is not sending JSON. Check Flask /api/districts.");
+        }
+        return response.json();
+    }),
+    fetch("/api/metrics").then(response => {
+        if (!response.headers.get("content-type").includes("application/json")) {
+            throw new Error("Metrics API is not sending JSON. Check Flask /api/metrics.");
+        }
+        return response.json();
+    })
+])
+.then(([districtData, metricsData]) => {
+
+    const metricsByDistrict = {};
+    metricsData.forEach(row => {
+        metricsByDistrict[Number(row.district)] = row;
+    });
+    const districtLayer = L.geoJSON(districtData, {
+        interactive: true,
+        style: {
+            color: "#333",
+            weight: 1,
+            fillColor: "#90caf9",
+            fillOpacity: 0.18
+        },
+        onEachFeature: function (feature, layer) {
+            const props = feature.properties;
+            const districtName =
+                props.NAMEK ||
+                "Vienna district";
+            const districtNumberRaw =
+                props.BEZNR ||
+                "";
+            const districtNumber = Number(districtNumberRaw);
+            const metrics = metricsByDistrict[districtNumber];
+            let popupContent = `
+                <b>${districtName}</b><br>
+                District: ${districtNumber}<br>
+            `;
+            if (metrics) {
+                popupContent += `
+                    <hr>
+                    <b>Dog statistics</b><br>
+                    Total dogs: ${metrics.dog_count}<br>
+                    Small dogs: ${metrics.small_dog_count} (${metrics.small_dog_percent.toFixed(1)}%)<br>
+                    Medium dogs: ${metrics.medium_dog_count} (${metrics.medium_dog_percent.toFixed(1)}%)<br>
+                    Large dogs: ${metrics.large_dog_count} (${metrics.large_dog_percent.toFixed(1)}%)<br>
+                    Unknown size: ${metrics.unknown_dog_count} (${metrics.unknown_dog_percent.toFixed(1)}%)<br>
+                    <hr>
+                    <b>Dog zone statistics</b><br>
+                    Dog zones: ${metrics.zone_count}<br>
+                    Total dog zone area: ${Math.round(metrics.total_zone_area_m2).toLocaleString()} m²<br>
+                    Space per dog: ${metrics.space_per_dog_m2.toFixed(1)} m²<br>
+                    Fenced zones: ${metrics.fenced_zones}<br>
+                    Partially fenced zones: ${metrics.partially_fenced_zones}<br>
+                    Water zones: ${metrics.water_zones}<br>
+                    Average quality score: ${metrics.average_quality_score.toFixed(1)}
+                `;
+            } else {
+                popupContent += `
+                    <hr>
+                    No metrics available for this district.
+                `;
+            }
+            layer.bindPopup(popupContent);
+            layer.on("mouseover", function () {
+                layer.setStyle({
+                    weight: 3,
+                    fillOpacity: 0.28
+                });
+            });
+            layer.on("mouseout", function () {
+                districtLayer.resetStyle(layer);
+            });
+        }
+    }).addTo(map);
+    districtLayer.bringToBack();
+    map.fitBounds(districtLayer.getBounds());
+})
+.catch(error => console.error("Error loading districts or metrics:", error));
+
 // 3. Fetch your cleaned dog zone data from your Flask backend
 fetch('/api/zones')
   .then(response => {

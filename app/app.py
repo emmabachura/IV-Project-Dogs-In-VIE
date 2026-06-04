@@ -25,7 +25,11 @@ def get_zones():
     zones_df = zones_df.fillna("")
     return jsonify(zones_df.to_dict(orient="records"))
 
-
+@app.route("/api/districts")
+def get_districts():
+    with open(PROCESSED_DIR / "vienna_districts.geojson", encoding="utf-8") as f:
+        data = json.load(f)
+    return jsonify(data)
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
