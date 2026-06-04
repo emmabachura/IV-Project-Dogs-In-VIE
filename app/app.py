@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template
 import pandas as pd
 import json
 from pathlib import Path
-r
+
 app = Flask(__name__, static_folder='static', template_folder='.')
 
 PROCESSED_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
@@ -22,7 +22,10 @@ def get_metrics():
 def get_zones():
     # Serves the individual dog zones for the interactive map polygons
     zones_df = pd.read_csv(PROCESSED_DIR / "zones_clean.csv")
+    zones_df = zones_df.fillna("")
     return jsonify(zones_df.to_dict(orient="records"))
+
+
 
 if __name__ == "__main__":
     app.run(debug=True, port=5000)
