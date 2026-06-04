@@ -2,9 +2,34 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Title</title>
+    <title>Vienna Dog Zones Visualization</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <header>
+        <h1>Dog-Friendly Spaces in Vienna</h1>
+        <p>Analyzing accessibility to dog zones relative to registered dogs.</p>
+    </header>
 
+    <main style="display: flex; gap: 20px;">
+        <section id="map-container" style="flex: 2;">
+            <h2>District Map</h2>
+            <div id="map"></div>
+        </section>
+
+        <section id="sidebar" style="flex: 1;">
+            <h2>Dog to Space Ratio</h2>
+            <div id="scatterplot"></div>
+            
+            <div id="filters">
+                <h3>Filters</h3>
+                <label><input type="checkbox" id="filter-water"> Drinking Water Available</label><br>
+                <label><input type="checkbox" id="filter-fenced"> Fenced Area</label>
+            </div>
+        </section>
+    </main>
+
+    <script src="/static/main.js"></script>
 </body>
 </html>
