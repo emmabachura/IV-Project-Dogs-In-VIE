@@ -2,7 +2,7 @@ from flask import Flask, jsonify, render_template
 import pandas as pd
 import json
 from pathlib import Path
-r
+
 app = Flask(__name__, static_folder='static', template_folder='.')
 
 PROCESSED_DIR = Path(__file__).resolve().parents[1] / "data" / "processed"
