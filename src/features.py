@@ -72,6 +72,20 @@ def engineer_features():
 
     zones_with_districts = gpd.sjoin(zones_gdf, districts_gdf, how="inner", predicate="intersects")
 
+    zones_with_districts["district"] = pd.to_numeric(zones_with_districts["BEZNR"], errors="coerce")
+
+    enriched_zones = pd.merge(
+        zones_with_districts,
+        dogs_per_district[["district", "dog_count"]], 
+        on="district",
+        how="left"
+    )
+
+    enriched_zones.rename(columns={"dog_count": "district_dog_count"}, inplace=True)
+
+    save_cols = [c for c in enriched_zones.columns if c not in ['geometry', 'index_right']]
+    enriched_zones[save_cols].to_csv(PROCESSED_DIR / "zones_clean.csv", index=False)
+
     zones_per_district = (
         zones_with_districts
         .groupby("BEZNR", as_index=False)

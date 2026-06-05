@@ -1,5 +1,22 @@
 // Initialize the map, center it on Vienna, and set the zoom to 12
 const map = L.map('map').setView([48.2082, 16.3738], 12);
+let activeDistrictClick = null;
+
+map.on('popupclose', function() {
+    
+    // If a district filter was active, clear it out!
+    if (activeDistrictClick !== null) {
+        activeDistrictClick = null;
+        
+        // Reset all D3 dots back to their normal state
+        d3.selectAll(".dot")
+          .transition().duration(300)
+          .style("opacity", 0.8)
+          .attr("r", 6)
+          .style("pointer-events", "all") // Reset pointer events
+          .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+    }
+});
 
 L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19,
@@ -33,7 +50,7 @@ Promise.all([
             color: "#333",
             weight: 1,
             fillColor: "#90caf9",
-            fillOpacity: 0.18
+            fillOpacity: 0.15
         },
         onEachFeature: function (feature, layer) {
             const props = feature.properties;
@@ -84,6 +101,33 @@ Promise.all([
             layer.on("mouseout", function () {
                 districtLayer.resetStyle(layer);
             });
+            layer.on("click", function () {
+                
+                // If they click the exact same district again, turn the filter OFF
+                if (activeDistrictClick === districtNumber) {
+                    activeDistrictClick = null;
+                    
+                    // Reset all D3 dots back to normal
+                    d3.selectAll(".dot")
+                      .transition().duration(300) // Smooth animation!
+                      .style("opacity", 0.8)
+                      .attr("r", 6)
+                      .style("pointer-events", "all")
+                      .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+                
+                } else {
+                    // Turn the filter ON for the newly clicked district
+                    activeDistrictClick = districtNumber;
+                    
+                    // Fade out dots from other districts, enlarge the matching ones
+                    d3.selectAll(".dot")
+                      .transition().duration(300)
+                      .style("opacity", d => parseInt(d.district) === districtNumber ? 1 : 0.05)
+                      .attr("r", d => parseInt(d.district) === districtNumber ? 9 : 4)
+                      .style("pointer-events", d => parseInt(d.district) === districtNumber ? "all" : "none")
+                      .style("stroke-width", d => parseInt(d.district) === districtNumber ? 2 : 0);
+                }
+            });
         }
     }).addTo(map);
     districtLayer.bringToBack();
@@ -91,7 +135,8 @@ Promise.all([
 })
 .catch(error => console.error("Error loading districts or metrics:", error));
 
-// 3. Fetch your cleaned dog zone data from your Flask backend
+const leafletMarkers = {};
+
 fetch('/api/zones')
   .then(response => {
       // Safety check: if the server sends back text/csv instead of JSON, we catch it
@@ -102,47 +147,171 @@ fetch('/api/zones')
   })
   .then(data => {
       
-      data.forEach(park => {
-          // Force the coordinates to be numbers, just in case they are strings
-          const lat = parseFloat(park.latitude);
-          const lng = parseFloat(park.longitude);
+      const validData = data.filter(park => 
+          park.latitude && !isNaN(parseFloat(park.latitude)) && 
+          park.area_m2 && !isNaN(parseFloat(park.area_m2)) &&
+          !(park.zone_type && park.zone_type.toLowerCase().includes("verbot")) // <-- ADDED THIS LINE
+      );
+      
+      validData.forEach(park => {
+        const lat = parseFloat(park.latitude);
+        const lng = parseFloat(park.longitude);
 
-          // Check that they actually exist and are valid numbers
-          if (!isNaN(lat) && !isNaN(lng)) {
-              
-              // ADVANCED VISUAL ENCODING: Color code based on the zone_type
-              let parkColor = "#ff7800"; // Default Orange
-              let typeDescription = park.zone_type;
+        let parkColor = "#ff7800";
+        let typeDescription = park.zone_type || "Unknown";
 
-              if (park.zone_type && park.zone_type.toLowerCase().includes("verbot")) {
-                  parkColor = "#d32f2f"; // RED for Dog Bans (Hundeverbot)
-                  typeDescription = "Dogs Prohibited (Verbot)";
-              } else if (park.zone_type && park.zone_type.toLowerCase().includes("hundezone")) {
-                  parkColor = "#388e3c"; // GREEN for dedicated Dog Zones
-                  typeDescription = "Dedicated Dog Zone";
-              }
+        if (park.zone_type && park.zone_type.toLowerCase().includes("hundezone")) {
+            parkColor = "#388e3c";
+            typeDescription = "Dedicated Dog Zone";
+        }
 
-              // Create a circle on the map for the park
-              const circle = L.circleMarker([lat, lng], {
-                  radius: 6,
-                  fillColor: parkColor, // Use our dynamic color!
-                  color: "#000",       
-                  weight: 1,           
-                  opacity: 1,
-                  fillOpacity: 0.8
-              }).addTo(map);
+        const circle = L.circleMarker([lat, lng], {
+          radius: 6,
+          fillColor: parkColor,
+          color: "#000",
+          weight: 1,
+          opacity: 1,
+          fillOpacity: 0.8
+        }).addTo(map);
 
-              // INTERACTIVITY: Add the popup
-              // We use park.is_fenced === true (or 'True') to handle missing/empty values safely
-              let popupContent = `<b>${park.park_name}</b><br>`;
-              popupContent += `Type: ${typeDescription}<br>`;
-              popupContent += `Area: ${park.area_m2 || 'Unknown'} m²<br>`;
-              popupContent += `Fenced: ${park.is_fenced == true || park.is_fenced === 'True' ? 'Yes' : 'No'}<br>`;
-              popupContent += `Water: ${park.has_water == true || park.has_water === 'True' ? 'Yes' : 'No'}`;
-              
-              circle.bindPopup(popupContent);
-          }
+        let popupContent = `<b>${park.park_name}</b><br>`;
+        popupContent += `Type: ${typeDescription}<br>`;
+        popupContent += `Area: ${park.area_m2 || 'Unknown'} m²<br>`;
+        popupContent += `Fenced: ${park.is_fenced == true || park.is_fenced === 'True' ? 'Yes' : 'No'}<br>`;
+        popupContent += `Water: ${park.has_water == true || park.has_water === 'True' ? 'Yes' : 'No'}`;
+
+        circle.bindPopup(popupContent);
+        leafletMarkers[park.object_id] = circle;
+        circle.on('mouseover', function() {
+            // 1. Highlight the Leaflet marker
+            this.setStyle({ color: "yellow", weight: 5 });
+            this.openPopup();
+
+            // 2. Find the D3 dot with the matching ID and highlight it!
+            d3.select("#dot-" + park.object_id)
+              .style("opacity", 1)
+              .attr("r", 10)
+              .style("stroke", "yellow")
+              .style("stroke-width", 3);
+        });
+        circle.on('mouseout', function() {
+            // 1. Revert the Leaflet marker
+            this.setStyle({ color: "#000", weight: 1 });
+            this.closePopup();
+
+            // 2. Revert the D3 dot back to its original state
+            const hasWater = park.has_water == true || park.has_water === 'True';
+            
+            d3.select("#dot-" + park.object_id)
+              .style("opacity", 0.8)
+              .attr("r", 6)
+              .style("stroke", hasWater ? "#00e5ff" : "black")
+              .style("stroke-width", hasWater ? 2.5 : 1);
+        });
       });
       
+      drawScatterplot(validData, leafletMarkers);
   })
   .catch(error => console.error("Error loading dog zones:", error));
+
+
+  function drawScatterplot(data, markers) {
+    // 1. Set up dimensions
+    const container = document.getElementById("scatterplot");
+    const margin = {top: 20, right: 20, bottom: 50, left: 50};
+    const width = container.clientWidth || 400; 
+    const height = 400 - margin.top - margin.bottom;
+
+    d3.select("#scatterplot").selectAll("*").remove();
+
+    const svg = d3.select("#scatterplot")
+      .append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+      .append("g")
+        .attr("transform", `translate(${margin.left},${margin.top})`);
+
+    // 2. Set up Scales
+    const xScale = d3.scaleLog()
+      .domain([10, d3.max(data, d => parseFloat(d.area_m2))])
+      .range([0, width]);
+
+    // CHANGED: Y-Axis now uses the district dog count. 
+    // (Multiplying by 1.1 adds 10% padding to the top of the chart so dots don't hit the ceiling)
+    const yScale = d3.scaleLinear()
+      .domain([0, d3.max(data, d => parseFloat(d.district_dog_count)) * 1.1])
+      .range([height, 0]);
+
+    // 3. Draw Axes
+    svg.append("g")
+      .attr("transform", `translate(0,${height})`)
+      .call(d3.axisBottom(xScale).ticks(5, "~s")); 
+
+    svg.append("g")
+      .call(d3.axisLeft(yScale).ticks(5));
+
+    // Axis Labels
+    svg.append("text")
+      .attr("x", width / 2)
+      .attr("y", height + 40)
+      .style("text-anchor", "middle")
+      .text("Park Area (m²) - Log Scale");
+
+    // CHANGED: Updated Y-Axis Label
+    svg.append("text")
+      .attr("transform", "rotate(-90)")
+      .attr("y", -40)
+      .attr("x", -height / 2)
+      .style("text-anchor", "middle")
+      .text("Total Registered Dogs in District");
+
+    // 4. Draw the Dots!
+    svg.selectAll(".dot")
+      .data(data)
+      .enter()
+      .append("circle")
+        .attr("class", "dot")
+        .attr("id", d => "dot-" + d.object_id)
+        .attr("cx", d => xScale(parseFloat(d.area_m2)))
+        // CHANGED: Plot the Y-coordinate using the district dog count
+        .attr("cy", d => yScale(parseFloat(d.district_dog_count)))
+        .attr("r", 6)
+        .style("fill", d => {
+            if (d.zone_type && d.zone_type.toLowerCase().includes("verbot")) return "#d32f2f"; // Red
+            if (d.zone_type && d.zone_type.toLowerCase().includes("hundezone")) return "#388e3c"; // Green
+            return "#ff7800"; // Orange
+        })
+        .style("opacity", 0.8)
+        // VISUAL ENCODING: Highlight parks that have water with a bright blue border!
+        .style("stroke", d => (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
+        .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1)
+
+        // 5. BRUSHING AND LINKING
+        .on("mouseover", function(event, d) {
+            d3.select(this)
+              .style("opacity", 1)
+              .attr("r", 10)
+              .style("stroke", "yellow")
+              .style("stroke-width", 3);
+
+            const linkedMarker = markers[d.object_id];
+            if (linkedMarker) {
+                linkedMarker.setStyle({ color: "yellow", weight: 5 });
+                linkedMarker.openPopup(); 
+            }
+        })
+        .on("mouseout", function(event, d) {
+            d3.select(this)
+              .style("opacity", 0.8)
+              .attr("r", 6)
+              // Reset the stroke back to blue (if it has water) or black (if no water)
+              .style("stroke", (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
+              .style("stroke-width", (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+
+            const linkedMarker = markers[d.object_id];
+            if (linkedMarker) {
+                linkedMarker.setStyle({ color: "#000", weight: 1 });
+                linkedMarker.closePopup();
+            }
+        });
+}
