@@ -1,6 +1,10 @@
 // Initialize the map, center it on Vienna, and set the zoom to 12
 const map = L.map('map').setView([48.2082, 16.3738], 12);
 let activeDistrictClick = null;
+let districtLayer;
+let zbLayer;
+let isHeatmapVisible = false;
+let markerLayer = L.layerGroup().addTo(map);
 
 map.on('popupclose', function() {
     
@@ -44,7 +48,7 @@ Promise.all([
     metricsData.forEach(row => {
         metricsByDistrict[Number(row.district)] = row;
     });
-    const districtLayer = L.geoJSON(districtData, {
+    districtLayer = L.geoJSON(districtData, {
         interactive: true,
         style: {
             color: "#333",
@@ -172,7 +176,7 @@ fetch('/api/zones')
           weight: 1,
           opacity: 1,
           fillOpacity: 0.8
-        }).addTo(map);
+        }).addTo(markerLayer);
 
         let popupContent = `<b>${park.park_name}</b><br>`;
         popupContent += `Type: ${typeDescription}<br>`;
@@ -315,3 +319,84 @@ fetch('/api/zones')
             }
         });
 }
+
+Promise.all([
+    fetch("/api/zaehlbezirke_shapes").then(res => res.json()),
+    fetch("/api/zaehlbezirk_metrics").then(res => res.json())
+]).then(([zbShapes, zbMetrics]) => {
+
+    // Map the metrics by ZBEZ ID for fast lookup
+    const metricsByZb = {};
+    zbMetrics.forEach(row => {
+        // Find the correct column name and FORCE it to a standard Number to drop leading zeros
+        const zbKey = row.ZBEZ_district ?? row.ZBEZ_right ?? row.ZBEZ ?? row.ZBEZNR ?? row.ZBEZNR_right;
+        if (zbKey) {
+            metricsByZb[Number(zbKey)] = row; 
+        }
+    });
+
+    // Create a D3 Color Scale for the Heatmap
+    const maxScore = d3.max(zbMetrics, d => d.infra_score) || 100;
+    const colorScale = d3.scaleSequential(d3.interpolateYlGn)
+                         .domain([0, maxScore]);
+
+    // Draw the 250 tracts on Leaflet
+    zbLayer = L.geoJSON(zbShapes, {
+        style: function (feature) {
+            const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
+            const zbezId = Number(rawId);
+            const metrics = metricsByZb[zbezId];
+            
+            const score = metrics ? metrics.infra_score : 0;
+            
+            const fillColor = score > 0 ? colorScale(score) : "#ff7b7b"; 
+
+            return {
+                color: "#000000",
+                weight: 1,     
+                fillColor: fillColor,
+                fillOpacity: 0.6
+            };
+        },
+        onEachFeature: function (feature, layer) {
+            const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
+            const zbezId = Number(rawId);
+            const metrics = metricsByZb[zbezId];
+            
+            if (metrics) {
+                layer.bindPopup(`
+                    <b>Tract ID: ${zbezId}</b><br>
+                    Infrastructure Rank: #${metrics.infra_rank}<br>
+                    Score: ${Math.round(metrics.infra_score)}<br>
+                    Total Parks: ${metrics.zone_count}
+                `);
+            } else {
+                layer.bindPopup(`<b>Tract ID: ${zbezId}</b><br>No Dog Parks Here!`);
+            }
+        }
+    });
+});
+
+
+document.getElementById('toggle-heatmap').addEventListener('click', function() {
+    if (!districtLayer || !zbLayer) {
+        console.warn("Map layers are still loading!");
+        return; 
+    }
+
+    isHeatmapVisible = !isHeatmapVisible;
+    
+    if (isHeatmapVisible) {
+        // Switch to Heatmap
+        map.removeLayer(districtLayer); 
+        map.addLayer(zbLayer);          
+        map.removeLayer(markerLayer);   // <--- NEW: Hide the dots!
+        this.innerText = "Show District Borders (23)";
+    } else {
+        // Switch to Districts
+        map.removeLayer(zbLayer);       
+        map.addLayer(districtLayer);    
+        map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
+        this.innerText = "Show Infrastructure Heatmap (250 Tracts)";
+    }
+});
