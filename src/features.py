@@ -9,7 +9,6 @@ PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 DISTRICTS_SHAPEFILE = PROJECT_ROOT / "data" / "raw" / "Zählbezirk" / "ZAEHLBEZIRKOGDPolygon.shp"
 
 
-
 def engineer_features():
     dogs_df = pd.read_csv(PROCESSED_DIR / "dogs_clean.csv")
     dogs_per_district = dogs_df.groupby("district")["dog_count"].sum().reset_index()
@@ -62,7 +61,6 @@ def engineer_features():
     )
 
     zones_df = pd.read_csv(PROCESSED_DIR / "zones_clean.csv")
-    zones_df = zones_df[~zones_df["zone_type"].str.contains("verbot", case=False, na=False)]
 
     # Remove old spatial join columns from any previous runs so the new join is clean
     drop_suffixes = ["_left", "_right"]
@@ -77,7 +75,7 @@ def engineer_features():
     zones_df = zones_df[[c for c in original_zone_cols if c in zones_df.columns]]
 
     zones_gdf = gpd.GeoDataFrame(
-        zones_df, 
+        zones_df,
         geometry=gpd.points_from_xy(zones_df.longitude, zones_df.latitude),
         crs="EPSG:4326"
     )
@@ -96,7 +94,7 @@ def engineer_features():
 
     enriched_zones = pd.merge(
         zones_with_districts,
-        dogs_per_district[["district", "dog_count"]], 
+        dogs_per_district[["district", "dog_count"]],
         on="district",
         how="left"
     )
@@ -124,12 +122,10 @@ def engineer_features():
     )
     zones_per_district.rename(columns={zone_district_col: "district"}, inplace=True)
 
-
     final_df = pd.merge(dogs_per_district, zones_per_district, on="district", how="left").fillna(0)
     final_df["space_per_dog_m2"] = final_df["total_zone_area_m2"] / final_df["dog_count"]
 
     final_df.to_json(PROCESSED_DIR / "district_metrics.json", orient="records")
-
 
     zb_district_col = "ZBEZ_right" if "ZBEZ_right" in zones_with_districts.columns else "ZBEZ"
     zb_zones = (
@@ -145,10 +141,10 @@ def engineer_features():
 
     zb_zones.rename(columns={zb_district_col: "ZBEZ"}, inplace=True)
     zb_zones["infra_score"] = (
-        (zb_zones["zone_count"] * 25) + 
-        (zb_zones["fenced_count"] * 15) + 
-        (zb_zones["water_count"] * 15) + 
-        (np.log10(zb_zones["total_area"] + 1) * 10) 
+            (zb_zones["zone_count"] * 25) +
+            (zb_zones["fenced_count"] * 15) +
+            (zb_zones["water_count"] * 15) +
+            (np.log10(zb_zones["total_area"] + 1) * 10)
     )
 
     zb_zones["infra_rank"] = zb_zones["infra_score"].rank(ascending=False, method="min")
@@ -156,6 +152,7 @@ def engineer_features():
     zb_zones.to_json(PROCESSED_DIR / "zaehlbezirk_metrics.json", orient="records")
 
     print("Feature engineering complete. Saved district_metrics.json")
+
 
 if __name__ == "__main__":
     engineer_features()

@@ -6,19 +6,19 @@ let zbLayer;
 let isHeatmapVisible = false;
 let markerLayer = L.layerGroup().addTo(map);
 
-map.on('popupclose', function() {
-    
+map.on('popupclose', function () {
+
     // If a district filter was active, clear it out!
     if (activeDistrictClick !== null) {
         activeDistrictClick = null;
-        
+
         // Reset all D3 dots back to their normal state
         d3.selectAll(".dot")
-          .transition().duration(300)
-          .style("opacity", 0.8)
-          .attr("r", 6)
-          .style("pointer-events", "all") // Reset pointer events
-          .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+            .transition().duration(300)
+            .style("opacity", 0.8)
+            .attr("r", 6)
+            .style("pointer-events", "all") // Reset pointer events
+            .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
     }
 });
 
@@ -42,36 +42,36 @@ Promise.all([
         return response.json();
     })
 ])
-.then(([districtData, metricsData]) => {
+    .then(([districtData, metricsData]) => {
 
-    const metricsByDistrict = {};
-    metricsData.forEach(row => {
-        metricsByDistrict[Number(row.district)] = row;
-    });
-    districtLayer = L.geoJSON(districtData, {
-        interactive: true,
-        style: {
-            color: "#333",
-            weight: 1,
-            fillColor: "#90caf9",
-            fillOpacity: 0.15
-        },
-        onEachFeature: function (feature, layer) {
-            const props = feature.properties;
-            const districtName =
-                props.NAMEK ||
-                "Vienna district";
-            const districtNumberRaw =
-                props.BEZNR ||
-                "";
-            const districtNumber = Number(districtNumberRaw);
-            const metrics = metricsByDistrict[districtNumber];
-            let popupContent = `
+        const metricsByDistrict = {};
+        metricsData.forEach(row => {
+            metricsByDistrict[Number(row.district)] = row;
+        });
+        districtLayer = L.geoJSON(districtData, {
+            interactive: true,
+            style: {
+                color: "#333",
+                weight: 1,
+                fillColor: "#90caf9",
+                fillOpacity: 0.15
+            },
+            onEachFeature: function (feature, layer) {
+                const props = feature.properties;
+                const districtName =
+                    props.NAMEK ||
+                    "Vienna district";
+                const districtNumberRaw =
+                    props.BEZNR ||
+                    "";
+                const districtNumber = Number(districtNumberRaw);
+                const metrics = metricsByDistrict[districtNumber];
+                let popupContent = `
                 <b>${districtName}</b><br>
                 District: ${districtNumber}<br>
             `;
-            if (metrics) {
-                popupContent += `
+                if (metrics) {
+                    popupContent += `
                     <hr>
                     <b>Dog statistics</b><br>
                     Total dogs: ${metrics.dog_count}<br>
@@ -89,191 +89,243 @@ Promise.all([
                     Water zones: ${metrics.water_zones}<br>
                     Average quality score: ${metrics.average_quality_score.toFixed(1)}
                 `;
-            } else {
-                popupContent += `
+                } else {
+                    popupContent += `
                     <hr>
                     No metrics available for this district.
                 `;
-            }
-            layer.bindPopup(popupContent);
-            layer.on("mouseover", function () {
-                layer.setStyle({
-                    weight: 3,
-                    fillOpacity: 0.28
-                });
-            });
-            layer.on("mouseout", function () {
-                districtLayer.resetStyle(layer);
-            });
-            layer.on("click", function () {
-                
-                // If they click the exact same district again, turn the filter OFF
-                if (activeDistrictClick === districtNumber) {
-                    activeDistrictClick = null;
-                    
-                    // Reset all D3 dots back to normal
-                    d3.selectAll(".dot")
-                      .transition().duration(300) // Smooth animation!
-                      .style("opacity", 0.8)
-                      .attr("r", 6)
-                      .style("pointer-events", "all")
-                      .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
-                
-                } else {
-                    // Turn the filter ON for the newly clicked district
-                    activeDistrictClick = districtNumber;
-                    
-                    // Fade out dots from other districts, enlarge the matching ones
-                    d3.selectAll(".dot")
-                      .transition().duration(300)
-                      .style("opacity", d => parseInt(d.district) === districtNumber ? 1 : 0.05)
-                      .attr("r", d => parseInt(d.district) === districtNumber ? 9 : 4)
-                      .style("pointer-events", d => parseInt(d.district) === districtNumber ? "all" : "none")
-                      .style("stroke-width", d => parseInt(d.district) === districtNumber ? 2 : 0);
                 }
-            });
-        }
-    }).addTo(map);
-    districtLayer.bringToBack();
-    map.fitBounds(districtLayer.getBounds());
-})
-.catch(error => console.error("Error loading districts or metrics:", error));
+                layer.bindPopup(popupContent);
+                layer.on("mouseover", function () {
+                    layer.setStyle({
+                        weight: 3,
+                        fillOpacity: 0.28
+                    });
+                });
+                layer.on("mouseout", function () {
+                    districtLayer.resetStyle(layer);
+                });
+                layer.on("click", function () {
+
+                    // If they click the exact same district again, turn the filter OFF
+                    if (activeDistrictClick === districtNumber) {
+                        activeDistrictClick = null;
+
+                        // Reset all D3 dots back to normal
+                        d3.selectAll(".dot")
+                            .transition().duration(300) // Smooth animation!
+                            .style("opacity", 0.8)
+                            .attr("r", 6)
+                            .style("pointer-events", "all")
+                            .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+
+                    } else {
+                        // Turn the filter ON for the newly clicked district
+                        activeDistrictClick = districtNumber;
+
+                        // Fade out dots from other districts, enlarge the matching ones
+                        d3.selectAll(".dot")
+                            .transition().duration(300)
+                            .style("opacity", d => parseInt(d.district) === districtNumber ? 1 : 0.05)
+                            .attr("r", d => parseInt(d.district) === districtNumber ? 9 : 4)
+                            .style("pointer-events", d => parseInt(d.district) === districtNumber ? "all" : "none")
+                            .style("stroke-width", d => parseInt(d.district) === districtNumber ? 2 : 0);
+                    }
+                });
+            }
+        }).addTo(map);
+        districtLayer.bringToBack();
+        map.fitBounds(districtLayer.getBounds());
+    })
+    .catch(error => console.error("Error loading districts or metrics:", error));
 
 const leafletMarkers = {};
 
 fetch('/api/zones')
-  .then(response => {
-      // Safety check: if the server sends back text/csv instead of JSON, we catch it
-      if (!response.headers.get("content-type").includes("application/json")) {
-          throw new Error("Backend is not sending JSON. Check your Flask app.py!");
-      }
-      return response.json();
-  })
-  .then(data => {
-      
-      const validData = data.filter(park => 
-          park.latitude && !isNaN(parseFloat(park.latitude)) && 
-          park.area_m2 && !isNaN(parseFloat(park.area_m2)) &&
-          !(park.zone_type && park.zone_type.toLowerCase().includes("verbot")) // <-- ADDED THIS LINE
-      );
-      
-      validData.forEach(park => {
-        const lat = parseFloat(park.latitude);
-        const lng = parseFloat(park.longitude);
+    .then(response => {
+        if (!response.headers.get("content-type").includes("application/json")) {
+            throw new Error("Backend is not sending JSON. Check your Flask app.py!");
+        }
+        return response.json();
+    })
+    .then(data => {
 
-        let parkColor = "#ff7800";
-        let typeDescription = park.zone_type || "Unknown";
+        const validData = data.filter(park =>
+            park.latitude && !isNaN(parseFloat(park.latitude)) &&
+            park.area_m2 && !isNaN(parseFloat(park.area_m2)) &&
+            !(park.zone_type && park.zone_type.toLowerCase().includes("verbot"))
+        );
 
-        if (park.zone_type && park.zone_type.toLowerCase().includes("hundezone")) {
-            parkColor = "#388e3c";
-            typeDescription = "Dedicated Dog Zone";
+        validData.forEach(park => {
+            const lat = parseFloat(park.latitude);
+            const lng = parseFloat(park.longitude);
+
+            let parkColor = "#ff7800";
+            let typeDescription = park.zone_type || "Unknown";
+
+            if (park.zone_type && park.zone_type.toLowerCase().includes("hundezone")) {
+                parkColor = "#388e3c";
+                typeDescription = "Dedicated Dog Zone";
+            }
+
+            const circle = L.circleMarker([lat, lng], {
+                radius: 6,
+                fillColor: parkColor,
+                color: "#000",
+                weight: 1,
+                opacity: 1,
+                fillOpacity: 0.8
+            }).addTo(markerLayer);
+
+            let popupContent = `<b>${park.park_name}</b><br>`;
+            popupContent += `Type: ${typeDescription}<br>`;
+            popupContent += `Area: ${park.area_m2 || 'Unknown'} m²<br>`;
+            popupContent += `Fenced: ${park.is_fenced == true || park.is_fenced === 'True' ? 'Yes' : 'No'}<br>`;
+            popupContent += `Water: ${park.has_water == true || park.has_water === 'True' ? 'Yes' : 'No'}`;
+
+            circle.bindPopup(popupContent);
+            leafletMarkers[park.object_id] = circle;
+
+            circle.on('mouseover', function () {
+                this.setStyle({color: "yellow", weight: 5});
+                this.openPopup();
+
+                d3.select("#dot-" + park.object_id)
+                    .style("opacity", 1)
+                    .attr("r", 10)
+                    .style("stroke", "yellow")
+                    .style("stroke-width", 3);
+            });
+
+            circle.on('mouseout', function () {
+                this.setStyle({color: "#000", weight: 1});
+                this.closePopup();
+
+                const hasWater = park.has_water == true || park.has_water === 'True';
+
+                d3.select("#dot-" + park.object_id)
+                    .style("opacity", 0.8)
+                    .attr("r", 6)
+                    .style("stroke", hasWater ? "#00e5ff" : "black")
+                    .style("stroke-width", hasWater ? 2.5 : 1);
+            });
+        });
+
+        drawScatterplot(validData, leafletMarkers);
+
+        // AREA SLIDER: one slider step = one unique dog-zone area value
+        allDogZones = validData;
+
+        uniqueAreaValues = [...new Set(
+            validData
+                .map(d => Math.round(parseFloat(d.area_m2)))
+                .filter(v => !isNaN(v))
+        )].sort((a, b) => a - b);
+
+        const areaSlider = document.getElementById("area-slider");
+        const areaSummary = document.getElementById("area-filter-summary");
+
+        areaSlider.min = 0;
+        areaSlider.max = uniqueAreaValues.length - 1;
+        areaSlider.step = 1;
+        areaSlider.value = uniqueAreaValues.length - 1;
+
+        function updateAreaFilter() {
+            const selectedIndex = Number(areaSlider.value);
+            const selectedMaxArea = uniqueAreaValues[selectedIndex];
+
+            let visibleCount = 0;
+
+            validData.forEach(park => {
+                const area = parseFloat(park.area_m2);
+                const isVisible = area <= selectedMaxArea;
+                const marker = leafletMarkers[park.object_id];
+
+                if (marker) {
+                    if (isVisible) {
+                        if (!markerLayer.hasLayer(marker)) {
+                            marker.addTo(markerLayer);
+                        }
+                    } else {
+                        if (markerLayer.hasLayer(marker)) {
+                            markerLayer.removeLayer(marker);
+                        }
+                    }
+                }
+
+                d3.select("#dot-" + park.object_id)
+                    .style("display", isVisible ? null : "none");
+
+                if (isVisible) {
+                    visibleCount += 1;
+                }
+            });
+
+            areaSummary.textContent =
+                `${visibleCount} of ${validData.length} dog zones are ${selectedMaxArea.toLocaleString()} m² or smaller.`;
         }
 
-        const circle = L.circleMarker([lat, lng], {
-          radius: 6,
-          fillColor: parkColor,
-          color: "#000",
-          weight: 1,
-          opacity: 1,
-          fillOpacity: 0.8
-        }).addTo(markerLayer);
+        areaSlider.addEventListener("input", updateAreaFilter);
+        updateAreaFilter();
 
-        let popupContent = `<b>${park.park_name}</b><br>`;
-        popupContent += `Type: ${typeDescription}<br>`;
-        popupContent += `Area: ${park.area_m2 || 'Unknown'} m²<br>`;
-        popupContent += `Fenced: ${park.is_fenced == true || park.is_fenced === 'True' ? 'Yes' : 'No'}<br>`;
-        popupContent += `Water: ${park.has_water == true || park.has_water === 'True' ? 'Yes' : 'No'}`;
+    })
+    .catch(error => console.error("Error loading dog zones:", error));
 
-        circle.bindPopup(popupContent);
-        leafletMarkers[park.object_id] = circle;
-        circle.on('mouseover', function() {
-            // 1. Highlight the Leaflet marker
-            this.setStyle({ color: "yellow", weight: 5 });
-            this.openPopup();
-
-            // 2. Find the D3 dot with the matching ID and highlight it!
-            d3.select("#dot-" + park.object_id)
-              .style("opacity", 1)
-              .attr("r", 10)
-              .style("stroke", "yellow")
-              .style("stroke-width", 3);
-        });
-        circle.on('mouseout', function() {
-            // 1. Revert the Leaflet marker
-            this.setStyle({ color: "#000", weight: 1 });
-            this.closePopup();
-
-            // 2. Revert the D3 dot back to its original state
-            const hasWater = park.has_water == true || park.has_water === 'True';
-            
-            d3.select("#dot-" + park.object_id)
-              .style("opacity", 0.8)
-              .attr("r", 6)
-              .style("stroke", hasWater ? "#00e5ff" : "black")
-              .style("stroke-width", hasWater ? 2.5 : 1);
-        });
-      });
-      
-      drawScatterplot(validData, leafletMarkers);
-  })
-  .catch(error => console.error("Error loading dog zones:", error));
-
-
-  function drawScatterplot(data, markers) {
+function drawScatterplot(data, markers) {
     // 1. Set up dimensions
     const container = document.getElementById("scatterplot");
     const margin = {top: 20, right: 20, bottom: 50, left: 50};
-    const width = container.clientWidth || 400; 
+    const width = container.clientWidth || 400;
     const height = 400 - margin.top - margin.bottom;
 
     d3.select("#scatterplot").selectAll("*").remove();
 
     const svg = d3.select("#scatterplot")
-      .append("svg")
+        .append("svg")
         .attr("width", width + margin.left + margin.right)
         .attr("height", height + margin.top + margin.bottom)
-      .append("g")
+        .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
     // 2. Set up Scales
     const xScale = d3.scaleLog()
-      .domain([10, d3.max(data, d => parseFloat(d.area_m2))])
-      .range([0, width]);
+        .domain([10, d3.max(data, d => parseFloat(d.area_m2))])
+        .range([0, width]);
 
     // CHANGED: Y-Axis now uses the district dog count. 
     // (Multiplying by 1.1 adds 10% padding to the top of the chart so dots don't hit the ceiling)
     const yScale = d3.scaleLinear()
-      .domain([0, d3.max(data, d => parseFloat(d.district_dog_count)) * 1.1])
-      .range([height, 0]);
+        .domain([0, d3.max(data, d => parseFloat(d.district_dog_count)) * 1.1])
+        .range([height, 0]);
 
     // 3. Draw Axes
     svg.append("g")
-      .attr("transform", `translate(0,${height})`)
-      .call(d3.axisBottom(xScale).ticks(5, "~s")); 
+        .attr("transform", `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).ticks(5, "~s"));
 
     svg.append("g")
-      .call(d3.axisLeft(yScale).ticks(5));
+        .call(d3.axisLeft(yScale).ticks(5));
 
     // Axis Labels
     svg.append("text")
-      .attr("x", width / 2)
-      .attr("y", height + 40)
-      .style("text-anchor", "middle")
-      .text("Park Area (m²) - Log Scale");
+        .attr("x", width / 2)
+        .attr("y", height + 40)
+        .style("text-anchor", "middle")
+        .text("Park Area (m²) - Log Scale");
 
     // CHANGED: Updated Y-Axis Label
     svg.append("text")
-      .attr("transform", "rotate(-90)")
-      .attr("y", -40)
-      .attr("x", -height / 2)
-      .style("text-anchor", "middle")
-      .text("Total Registered Dogs in District");
+        .attr("transform", "rotate(-90)")
+        .attr("y", -40)
+        .attr("x", -height / 2)
+        .style("text-anchor", "middle")
+        .text("Total Registered Dogs in District");
 
     // 4. Draw the Dots!
     svg.selectAll(".dot")
-      .data(data)
-      .enter()
-      .append("circle")
+        .data(data)
+        .enter()
+        .append("circle")
         .attr("class", "dot")
         .attr("id", d => "dot-" + d.object_id)
         .attr("cx", d => xScale(parseFloat(d.area_m2)))
@@ -291,30 +343,30 @@ fetch('/api/zones')
         .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1)
 
         // 5. BRUSHING AND LINKING
-        .on("mouseover", function(event, d) {
+        .on("mouseover", function (event, d) {
             d3.select(this)
-              .style("opacity", 1)
-              .attr("r", 10)
-              .style("stroke", "yellow")
-              .style("stroke-width", 3);
+                .style("opacity", 1)
+                .attr("r", 10)
+                .style("stroke", "yellow")
+                .style("stroke-width", 3);
 
             const linkedMarker = markers[d.object_id];
             if (linkedMarker) {
-                linkedMarker.setStyle({ color: "yellow", weight: 5 });
-                linkedMarker.openPopup(); 
+                linkedMarker.setStyle({color: "yellow", weight: 5});
+                linkedMarker.openPopup();
             }
         })
-        .on("mouseout", function(event, d) {
+        .on("mouseout", function (event, d) {
             d3.select(this)
-              .style("opacity", 0.8)
-              .attr("r", 6)
-              // Reset the stroke back to blue (if it has water) or black (if no water)
-              .style("stroke", (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
-              .style("stroke-width", (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+                .style("opacity", 0.8)
+                .attr("r", 6)
+                // Reset the stroke back to blue (if it has water) or black (if no water)
+                .style("stroke", (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
+                .style("stroke-width", (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
 
             const linkedMarker = markers[d.object_id];
             if (linkedMarker) {
-                linkedMarker.setStyle({ color: "#000", weight: 1 });
+                linkedMarker.setStyle({color: "#000", weight: 1});
                 linkedMarker.closePopup();
             }
         });
@@ -331,14 +383,14 @@ Promise.all([
         // Find the correct column name and FORCE it to a standard Number to drop leading zeros
         const zbKey = row.ZBEZ_district ?? row.ZBEZ_right ?? row.ZBEZ ?? row.ZBEZNR ?? row.ZBEZNR_right;
         if (zbKey) {
-            metricsByZb[Number(zbKey)] = row; 
+            metricsByZb[Number(zbKey)] = row;
         }
     });
 
     // Create a D3 Color Scale for the Heatmap
     const maxScore = d3.max(zbMetrics, d => d.infra_score) || 100;
     const colorScale = d3.scaleSequential(d3.interpolateYlGn)
-                         .domain([0, maxScore]);
+        .domain([0, maxScore]);
 
     // Draw the 250 tracts on Leaflet
     zbLayer = L.geoJSON(zbShapes, {
@@ -346,14 +398,14 @@ Promise.all([
             const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
             const zbezId = Number(rawId);
             const metrics = metricsByZb[zbezId];
-            
+
             const score = metrics ? metrics.infra_score : 0;
-            
-            const fillColor = score > 0 ? colorScale(score) : "#ff7b7b"; 
+
+            const fillColor = score > 0 ? colorScale(score) : "#ff7b7b";
 
             return {
                 color: "#000000",
-                weight: 1,     
+                weight: 1,
                 fillColor: fillColor,
                 fillOpacity: 0.6
             };
@@ -362,7 +414,7 @@ Promise.all([
             const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
             const zbezId = Number(rawId);
             const metrics = metricsByZb[zbezId];
-            
+
             if (metrics) {
                 layer.bindPopup(`
                     <b>Tract ID: ${zbezId}</b><br>
@@ -378,24 +430,24 @@ Promise.all([
 });
 
 
-document.getElementById('toggle-heatmap').addEventListener('click', function() {
+document.getElementById('toggle-heatmap').addEventListener('click', function () {
     if (!districtLayer || !zbLayer) {
         console.warn("Map layers are still loading!");
-        return; 
+        return;
     }
 
     isHeatmapVisible = !isHeatmapVisible;
-    
+
     if (isHeatmapVisible) {
         // Switch to Heatmap
-        map.removeLayer(districtLayer); 
-        map.addLayer(zbLayer);          
+        map.removeLayer(districtLayer);
+        map.addLayer(zbLayer);
         map.removeLayer(markerLayer);   // <--- NEW: Hide the dots!
         this.innerText = "Show District Borders (23)";
     } else {
         // Switch to Districts
-        map.removeLayer(zbLayer);       
-        map.addLayer(districtLayer);    
+        map.removeLayer(zbLayer);
+        map.addLayer(districtLayer);
         map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
         this.innerText = "Show Infrastructure Heatmap (250 Tracts)";
     }

@@ -222,6 +222,13 @@ def clean_dog_zones():
     df["is_fenced"] = df["fenced_raw"].apply(clean_fenced)
     df["park_name"] = df["park_name"].str.strip()
     df["zone_type"] = df["zone_type"].str.strip()
+
+    df = df[
+        ~df["zone_type"]
+        .fillna("")
+        .str.lower()
+        .str.contains("hundeverbot")
+    ]
     # Useful simple quality score.
 
     # You can later refine this in your feature engineering step.

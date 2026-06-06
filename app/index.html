@@ -5,31 +5,38 @@
     <title>Vienna Dog Zones Visualization</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-    <header>
-        <h1>Dog-Friendly Spaces in Vienna</h1>
-        <p>Analyzing accessibility to dog zones relative to registered dogs.</p>
-    </header>
+<header>
+    <h1>Dog-Friendly Spaces in Vienna</h1>
+    <p>Analyzing accessibility to dog zones relative to registered dogs.</p>
+</header>
 
-    <main style="display: flex; gap: 20px;">
-        <div id="map" style="width: 50%; height: 600px;"></div>
+<main style="display: flex; gap: 20px;">
+    <div id="map" style="width: 50%; height: 600px;"></div>
 
-        <section id="sidebar" style="flex: 1;">
-            <h2>Dog to Space Ratio</h2>
-            <div id="scatterplot"></div>
-            
-            <div id="filters">
-                
-                <button id="toggle-heatmap" style="padding: 10px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; font-weight: bold;">
-                    Show Infrastructure Heatmap (250 Tracts)
-                </button>
-            </div>
-        </section>
-    </main>
+    <section id="sidebar" style="flex: 1;">
+        <h2>Dog to Space Ratio</h2>
+        <div id="scatterplot"></div>
 
-    <script src="/static/main.js"></script>
+        <div id="filters">
+
+            <button id="toggle-heatmap"
+                    style="padding: 10px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; font-weight: bold;">
+                Show Infrastructure Heatmap (250 Tracts)
+            </button>
+        </div>
+    </section>
+</main>
+<div id="area-filter" style="margin-top: 15px;">
+    <label for="area-slider">
+        Max dog zone area
+    </label>
+    <br>
+<input id="area-slider" type="range" min="0" max="100" value="100" step="1" style="width: 300px;">    <p id="area-filter-summary"></p>
+</div>
+<script src="/static/main.js"></script>
 </body>
 </html>
