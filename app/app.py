@@ -31,5 +31,15 @@ def get_districts():
         data = json.load(f)
     return jsonify(data)
 
+@app.route("/api/zaehlbezirke_shapes")
+def get_zb_shapes():
+    with open(PROCESSED_DIR / "vienna_zaehlbezirke.geojson") as f:
+        return jsonify(json.load(f))
+
+@app.route("/api/zaehlbezirk_metrics")
+def get_zb_metrics():
+    with open(PROCESSED_DIR / "zaehlbezirk_metrics.json") as f:
+        return jsonify(json.load(f))
+
 if __name__ == "__main__":
     app.run(debug=True, port=5000)

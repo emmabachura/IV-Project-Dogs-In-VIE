@@ -3,18 +3,18 @@ import geopandas as gpd
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
-INPUT_FILE = PROJECT_ROOT / "data" / "raw" / "vienna_districts_raw.json"
-OUTPUT_FILE = PROJECT_ROOT / "data" / "processed" / "vienna_districts.geojson"
+INPUT_FILE = PROJECT_ROOT / "data" / "raw" / "Zählbezirk" / "ZAEHLBEZIRKOGDPolygon.shp"
+OUTPUT_FILE = PROJECT_ROOT / "data" / "processed" / "vienna_zaehlbezirke.geojson"
 
 OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
 
-districts = gpd.read_file(INPUT_FILE)
+zb_gdf = gpd.read_file(INPUT_FILE)
 
-print("Original CRS:", districts.crs)
-print(districts.columns)
+print("Original CRS:", zb_gdf.crs)
+print(zb_gdf.columns)
 
-districts = districts.to_crs("EPSG:4326")
+zb_gdf = zb_gdf.to_crs("EPSG:4326")
 
-districts.to_file(OUTPUT_FILE, driver="GeoJSON")
+zb_gdf.to_file(OUTPUT_FILE, driver="GeoJSON")
 
 print(f"Saved converted file to: {OUTPUT_FILE}")

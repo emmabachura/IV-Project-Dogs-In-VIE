@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
@@ -61,18 +62,37 @@ def engineer_features():
     )
 
     zones_df = pd.read_csv(PROCESSED_DIR / "zones_clean.csv")
+    zones_df = zones_df[~zones_df["zone_type"].str.contains("verbot", case=False, na=False)]
+
+    # Remove old spatial join columns from any previous runs so the new join is clean
+    drop_suffixes = ["_left", "_right"]
+    zones_df = zones_df.loc[:, ~zones_df.columns.str.endswith(tuple(drop_suffixes))]
+
+    # Keep only the original zone fields needed for spatial join and output
+    original_zone_cols = [
+        "object_id", "park_name", "phone", "zone_type", "area_m2",
+        "is_fenced", "has_water", "quality_score", "longitude", "latitude",
+        "web_link"
+    ]
+    zones_df = zones_df[[c for c in original_zone_cols if c in zones_df.columns]]
+
     zones_gdf = gpd.GeoDataFrame(
         zones_df, 
         geometry=gpd.points_from_xy(zones_df.longitude, zones_df.latitude),
         crs="EPSG:4326"
     )
 
-   
     districts_gdf = gpd.read_file(DISTRICTS_SHAPEFILE).to_crs("EPSG:4326")
 
-    zones_with_districts = gpd.sjoin(zones_gdf, districts_gdf, how="inner", predicate="intersects")
+    zones_with_districts = gpd.sjoin(
+        zones_gdf,
+        districts_gdf,
+        how="inner",
+        predicate="intersects"
+    )
 
-    zones_with_districts["district"] = pd.to_numeric(zones_with_districts["BEZNR"], errors="coerce")
+    district_source = "BEZNR_right" if "BEZNR_right" in zones_with_districts.columns else "BEZNR"
+    zones_with_districts["district"] = pd.to_numeric(zones_with_districts[district_source], errors="coerce")
 
     enriched_zones = pd.merge(
         zones_with_districts,
@@ -83,12 +103,16 @@ def engineer_features():
 
     enriched_zones.rename(columns={"dog_count": "district_dog_count"}, inplace=True)
 
-    save_cols = [c for c in enriched_zones.columns if c not in ['geometry', 'index_right']]
+    save_cols = [
+        c for c in enriched_zones.columns
+        if c not in ['geometry', 'index_right'] and not c.endswith(('_left', '_right'))
+    ]
     enriched_zones[save_cols].to_csv(PROCESSED_DIR / "zones_clean.csv", index=False)
 
+    zone_district_col = "BEZNR_right" if "BEZNR_right" in zones_with_districts.columns else "BEZNR"
     zones_per_district = (
         zones_with_districts
-        .groupby("BEZNR", as_index=False)
+        .groupby(zone_district_col, as_index=False)
         .agg(
             total_zone_area_m2=("area_m2", "sum"),
             zone_count=("object_id", "count"),
@@ -98,13 +122,39 @@ def engineer_features():
             average_quality_score=("quality_score", "mean")
         )
     )
-    zones_per_district.rename(columns={"BEZNR": "district"}, inplace=True)
+    zones_per_district.rename(columns={zone_district_col: "district"}, inplace=True)
 
 
     final_df = pd.merge(dogs_per_district, zones_per_district, on="district", how="left").fillna(0)
     final_df["space_per_dog_m2"] = final_df["total_zone_area_m2"] / final_df["dog_count"]
 
     final_df.to_json(PROCESSED_DIR / "district_metrics.json", orient="records")
+
+
+    zb_district_col = "ZBEZ_right" if "ZBEZ_right" in zones_with_districts.columns else "ZBEZ"
+    zb_zones = (
+        zones_with_districts
+        .groupby(zb_district_col, as_index=False)
+        .agg(
+            total_area=("area_m2", "sum"),
+            zone_count=("object_id", "count"),
+            fenced_count=("is_fenced", lambda x: (x == "yes").sum() + (x == "partially").sum()),
+            water_count=("has_water", lambda x: (x != "no").sum())
+        )
+    )
+
+    zb_zones.rename(columns={zb_district_col: "ZBEZ"}, inplace=True)
+    zb_zones["infra_score"] = (
+        (zb_zones["zone_count"] * 25) + 
+        (zb_zones["fenced_count"] * 15) + 
+        (zb_zones["water_count"] * 15) + 
+        (np.log10(zb_zones["total_area"] + 1) * 10) 
+    )
+
+    zb_zones["infra_rank"] = zb_zones["infra_score"].rank(ascending=False, method="min")
+
+    zb_zones.to_json(PROCESSED_DIR / "zaehlbezirk_metrics.json", orient="records")
+
     print("Feature engineering complete. Saved district_metrics.json")
 
 if __name__ == "__main__":
