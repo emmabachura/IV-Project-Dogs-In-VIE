@@ -331,14 +331,15 @@ function drawScatterplot(data, markers) {
     // 1. Set up dimensions
     const container = document.getElementById("scatterplot");
     const margin = {top: 20, right: 20, bottom: 50, left: 50};
-    const width = container.clientWidth || 400;
+    const outerWidth = container.clientWidth || 400;
+    const width = Math.max(outerWidth - margin.left - margin.right, 220);
     const height = 400 - margin.top - margin.bottom;
 
     d3.select("#scatterplot").selectAll("*").remove();
 
     const svg = d3.select("#scatterplot")
         .append("svg")
-        .attr("width", width + margin.left + margin.right)
+        .attr("width", outerWidth)
         .attr("height", height + margin.top + margin.bottom)
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
@@ -431,7 +432,8 @@ function drawScatterplot(data, markers) {
 function drawTopSubdistrictChart(data) {
     const container = document.getElementById('scatterplot');
     const margin = {top: 20, right: 50, bottom: 40, left: 130};
-    const width = container.clientWidth || 400;
+    const outerWidth = container.clientWidth || 400;
+    const width = Math.max(outerWidth - margin.left - margin.right, 220);
     const height = 400 - margin.top - margin.bottom;
 
     d3.select('#scatterplot').selectAll('*').remove();
@@ -444,7 +446,7 @@ function drawTopSubdistrictChart(data) {
 
     const svg = d3.select('#scatterplot')
         .append('svg')
-        .attr('width', width + margin.left + margin.right)
+        .attr('width', outerWidth)
         .attr('height', height + margin.top + margin.bottom)
         .append('g')
         .attr('transform', `translate(${margin.left},${margin.top})`);
@@ -590,4 +592,8 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
     }
 
     renderActiveChart();
+
+    requestAnimationFrame(() => {
+        map.invalidateSize();
+    });
 });
