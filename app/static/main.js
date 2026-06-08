@@ -5,6 +5,63 @@ let districtLayer;
 let zbLayer;
 let isHeatmapVisible = false;
 let markerLayer = L.layerGroup().addTo(map);
+let allDogZones = [];
+let zaehlbezirkMetrics = [];
+let heatmapColorScale = null;
+
+const chartTitle = document.getElementById('chart-title');
+const chartDescription = document.getElementById('chart-description');
+const areaFilter = document.getElementById('area-filter');
+const zbLayersById = {};
+
+function updateChartPanelText() {
+    if (isHeatmapVisible) {
+        chartTitle.textContent = 'Top 10 Sub-districts by Infrastructure Score';
+        chartDescription.textContent = 'The heatmap view ranks the strongest sub-districts using the current infrastructure score.';
+        areaFilter.style.display = 'none';
+        return;
+    }
+
+    chartTitle.textContent = 'Dog Zone Area vs. Registered Dogs';
+    chartDescription.textContent = 'Explore how individual dog zones relate to district-level dog counts.';
+    areaFilter.style.display = '';
+}
+
+function renderActiveChart() {
+    updateChartPanelText();
+
+    if (isHeatmapVisible) {
+        if (zaehlbezirkMetrics.length > 0) {
+            drawTopSubdistrictChart(zaehlbezirkMetrics);
+        }
+        return;
+    }
+
+    if (allDogZones.length > 0) {
+        drawScatterplot(allDogZones, leafletMarkers);
+    }
+}
+
+function setSubdistrictHighlight(zbezId, isHighlighted) {
+    const layer = zbLayersById[zbezId];
+
+    if (!layer) {
+        return;
+    }
+
+    layer.setStyle({
+        weight: isHighlighted ? 3 : 1,
+        color: isHighlighted ? '#1b4332' : '#000000',
+        fillOpacity: isHighlighted ? 0.82 : 0.6
+    });
+
+    if (isHighlighted) {
+        layer.bringToFront();
+        layer.openPopup();
+    } else {
+        layer.closePopup();
+    }
+}
 
 map.on('popupclose', function () {
 
@@ -211,11 +268,10 @@ fetch('/api/zones')
             });
         });
 
-        drawScatterplot(validData, leafletMarkers);
+        allDogZones = validData;
+        renderActiveChart();
 
         // AREA SLIDER: one slider step = one unique dog-zone area value
-        allDogZones = validData;
-
         uniqueAreaValues = [...new Set(
             validData
                 .map(d => Math.round(parseFloat(d.area_m2)))
@@ -372,24 +428,102 @@ function drawScatterplot(data, markers) {
         });
 }
 
+function drawTopSubdistrictChart(data) {
+    const container = document.getElementById('scatterplot');
+    const margin = {top: 20, right: 50, bottom: 40, left: 130};
+    const width = container.clientWidth || 400;
+    const height = 400 - margin.top - margin.bottom;
+
+    d3.select('#scatterplot').selectAll('*').remove();
+
+    const topSubdistricts = [...data]
+        .filter(d => !isNaN(Number(d.infra_score)))
+        .sort((a, b) => Number(b.infra_score) - Number(a.infra_score))
+        .slice(0, 10)
+        .reverse();
+
+    const svg = d3.select('#scatterplot')
+        .append('svg')
+        .attr('width', width + margin.left + margin.right)
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const xScale = d3.scaleLinear()
+        .domain([0, d3.max(topSubdistricts, d => Number(d.infra_score)) * 1.1])
+        .range([0, width]);
+
+    const yScale = d3.scaleBand()
+        .domain(topSubdistricts.map(d => `Sub-district ${Number(d.ZBEZ)}`))
+        .range([height, 0])
+        .padding(0.18);
+
+    svg.append('g')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).ticks(5));
+
+    svg.append('g')
+        .call(d3.axisLeft(yScale));
+
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', height + 35)
+        .style('text-anchor', 'middle')
+        .text('Infrastructure score');
+
+    svg.selectAll('.top-bar')
+        .data(topSubdistricts)
+        .enter()
+        .append('rect')
+        .attr('class', 'top-bar')
+        .attr('x', 0)
+        .attr('y', d => yScale(`Sub-district ${Number(d.ZBEZ)}`))
+        .attr('width', d => xScale(Number(d.infra_score)))
+        .attr('height', yScale.bandwidth())
+        .attr('fill', d => heatmapColorScale ? heatmapColorScale(Number(d.infra_score)) : '#90be6d')
+        .on('mouseover', function (event, d) {
+            d3.select(this).attr('fill', '#2d6a4f');
+            setSubdistrictHighlight(Number(d.ZBEZ), true);
+        })
+        .on('mouseout', function (event, d) {
+            d3.select(this)
+                .attr('fill', heatmapColorScale ? heatmapColorScale(Number(d.infra_score)) : '#90be6d');
+            setSubdistrictHighlight(Number(d.ZBEZ), false);
+        });
+
+    svg.selectAll('.score-label')
+        .data(topSubdistricts)
+        .enter()
+        .append('text')
+        .attr('class', 'score-label')
+        .attr('x', d => xScale(Number(d.infra_score)) + 8)
+        .attr('y', d => (yScale(`Sub-district ${Number(d.ZBEZ)}`) || 0) + (yScale.bandwidth() / 2) + 4)
+        .style('font-size', '12px')
+        .text(d => `${Math.round(Number(d.infra_score))}`);
+}
+
 Promise.all([
     fetch("/api/zaehlbezirke_shapes").then(res => res.json()),
     fetch("/api/zaehlbezirk_metrics").then(res => res.json())
 ]).then(([zbShapes, zbMetrics]) => {
+    zaehlbezirkMetrics = zbMetrics.map(row => {
+        const zbKey = row.ZBEZ_district ?? row.ZBEZ_right ?? row.ZBEZ ?? row.ZBEZNR ?? row.ZBEZNR_right;
+        return {
+            ...row,
+            ZBEZ: Number(zbKey)
+        };
+    }).filter(row => !isNaN(row.ZBEZ));
 
     // Map the metrics by ZBEZ ID for fast lookup
     const metricsByZb = {};
-    zbMetrics.forEach(row => {
+    zaehlbezirkMetrics.forEach(row => {
         // Find the correct column name and FORCE it to a standard Number to drop leading zeros
-        const zbKey = row.ZBEZ_district ?? row.ZBEZ_right ?? row.ZBEZ ?? row.ZBEZNR ?? row.ZBEZNR_right;
-        if (zbKey) {
-            metricsByZb[Number(zbKey)] = row;
-        }
+        metricsByZb[row.ZBEZ] = row;
     });
 
     // Create a D3 Color Scale for the Heatmap
-    const maxScore = d3.max(zbMetrics, d => d.infra_score) || 100;
-    const colorScale = d3.scaleSequential(d3.interpolateYlGn)
+    const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 100;
+    heatmapColorScale = d3.scaleSequential(d3.interpolateYlGn)
         .domain([0, maxScore]);
 
     // Draw the 250 tracts on Leaflet
@@ -401,7 +535,7 @@ Promise.all([
 
             const score = metrics ? metrics.infra_score : 0;
 
-            const fillColor = score > 0 ? colorScale(score) : "#ff7b7b";
+            const fillColor = score > 0 ? heatmapColorScale(score) : "#ff7b7b";
 
             return {
                 color: "#000000",
@@ -414,19 +548,22 @@ Promise.all([
             const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
             const zbezId = Number(rawId);
             const metrics = metricsByZb[zbezId];
+            zbLayersById[zbezId] = layer;
 
             if (metrics) {
                 layer.bindPopup(`
-                    <b>Tract ID: ${zbezId}</b><br>
+                    <b>Sub-district ${zbezId}</b><br>
                     Infrastructure Rank: #${metrics.infra_rank}<br>
                     Score: ${Math.round(metrics.infra_score)}<br>
                     Total Parks: ${metrics.zone_count}
                 `);
             } else {
-                layer.bindPopup(`<b>Tract ID: ${zbezId}</b><br>No Dog Parks Here!`);
+                layer.bindPopup(`<b>Sub-district ${zbezId}</b><br>No dog parks here.`);
             }
         }
     });
+
+    renderActiveChart();
 });
 
 
@@ -451,4 +588,6 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
         map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
         this.innerText = "Show Infrastructure Heatmap (250 Tracts)";
     }
+
+    renderActiveChart();
 });
