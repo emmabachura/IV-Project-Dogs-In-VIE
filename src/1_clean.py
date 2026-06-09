@@ -1,3 +1,10 @@
+"""
+Clean raw Vienna dog registration and dog zone datasets.
+This script reads raw CSV files from data/raw/, cleans and standardizes the data,
+adds derived columns such as district, dog size, and coordinates,
+and writes cleaned CSV files to data/processed/.
+"""
+
 from pathlib import Path
 import pandas as pd
 import re
@@ -17,11 +24,8 @@ OUTPUT_FILE_ZONES = PROCESSED_DIR / "zones_clean.csv"
 
 def extract_district_from_postal_code(postal_code):
     """
-    Vienna postal codes:
-    1010 -> district 1
-    1020 -> district 2
-    ...
-    1230 -> district 23
+    Extracts the Vienna district number from a four-digit postal code e.g.:
+    1010 -> 1
     """
     if pd.isna(postal_code):
         return pd.NA
@@ -35,7 +39,7 @@ def extract_district_from_postal_code(postal_code):
 
 def classify_single_breed_size(breed):
     """
-    Classifies one breed name as small, medium, large, or unknown.
+    Classifies one breed as small, medium, large, or unknown.
     Uses keyword matching.
     """
     if pd.isna(breed):
@@ -43,7 +47,6 @@ def classify_single_breed_size(breed):
 
     breed = str(breed).lower()
 
-    # Check large first, because for mixed breeds we want the larger size to win.
     if any(keyword in breed for keyword in LARGE_KEYWORDS):
         return "large"
 
@@ -62,7 +65,7 @@ def classify_single_breed_size(breed):
 def classify_dog_size(breed):
     """
     Handles mixed breeds separated by '/'.
-    Uses the largest detected category.
+    Returns the size of the larger breed.
     """
 
     if pd.isna(breed):
@@ -83,6 +86,12 @@ def classify_dog_size(breed):
 
 
 def clean_dogs_vienna():
+    """
+        Cleans the raw Vienna dog registration dataset.
+        Standardizes columns, extracts districts from postal codes, classifies dog
+        sizes, aggregates dog counts, and saves the cleaned dog dataset.
+        """
+
     df = pd.read_csv(
         INPUT_FILE_DOGS,
         sep=";",
@@ -130,10 +139,9 @@ def clean_dogs_vienna():
 
 def parse_area_m2(value):
     """
-    Converts values such as:
+    Converts values like:
     'ca. 989 m²'
-    'ca. 2969 m²'
-    into numeric square meters.
+    to numeric square meters.
     """
     if pd.isna(value):
         return pd.NA
@@ -146,11 +154,7 @@ def parse_area_m2(value):
 
 def parse_point_geometry(shape):
     """
-    Converts WKT point:
-    POINT (16.339258670106737 48.18877473447244)
-    into:
-    longitude = 16.339258670106737
-    latitude = 48.18877473447244
+    Splits WKT points into 2 columns (latitude and longitude).
     """
     if pd.isna(shape):
         return pd.Series([pd.NA, pd.NA])
@@ -167,6 +171,9 @@ def parse_point_geometry(shape):
     return pd.Series([longitude, latitude])
 
 def clean_water_value(value):
+    """
+        Standardizes dog drinking water information.
+        """
     if pd.isna(value):
         return pd.NA
     value = str(value).strip().lower()
@@ -175,6 +182,10 @@ def clean_water_value(value):
     return value
 
 def clean_fenced(value):
+    """
+        Standardizes fencing information for dog zones.
+        Maps German values such as "ja", "nein", and "teilweise" to English labels.
+        """
     if pd.isna(value):
         return pd.NA
     value = str(value).strip().lower()
@@ -189,6 +200,12 @@ def clean_fenced(value):
     return pd.NA
 
 def clean_dog_zones():
+    """
+        Cleans the raw Vienna dog zone dataset.
+        Parses area and coordinates, standardizes water and fencing values, removes
+        dog-prohibited zones, and saves the result.
+        """
+
     df = pd.read_csv(
         INPUT_FILE_ZONES,
         sep=",",
@@ -229,16 +246,7 @@ def clean_dog_zones():
         .str.lower()
         .str.contains("hundeverbot")
     ]
-    # Useful simple quality score.
 
-    # You can later refine this in your feature engineering step.
-
-    df["quality_score"] = 0.0
-    df.loc[df["area_m2"] >= 1000, "quality_score"] += 1.0
-    df.loc[df["area_m2"] >= 3000, "quality_score"] += 1.0
-    df.loc[df["has_water"] != "no", "quality_score"] += 1.0
-    df.loc[df["is_fenced"] == "yes", "quality_score"] += 1.0
-    df.loc[df["is_fenced"] == "partially", "quality_score"] += 0.5
 
     cols = [
         "object_id",
@@ -248,7 +256,6 @@ def clean_dog_zones():
         "area_m2",
         "is_fenced",
         "has_water",
-        "quality_score",
         "longitude",
         "latitude",
         "web_link"
@@ -264,22 +271,3 @@ def clean_dog_zones():
 if __name__ == "__main__":
     clean_dogs_vienna()
     clean_dog_zones()
-
-
-# def show_unique_breeds():
-#     df = pd.read_csv(OUTPUT_FILE_DOGS)
-#
-#     breeds = (
-#         df["breed"]
-#         .dropna()
-#         .astype(str)
-#         .str.strip()
-#         .sort_values()
-#         .unique()
-#     )
-#
-#     print(f"Number of unique breeds: {len(breeds)}")
-#     print()
-#
-#     for breed in breeds:
-#         print(breed)

@@ -1,3 +1,9 @@
+"""
+Convert Vienna counting district boundaries to GeoJSON.
+
+This script reads the original counting district shapefile, converts it to
+WGS84 coordinates, and saves it as a GeoJSON file for later use in maps.
+"""
 from pathlib import Path
 import geopandas as gpd
 

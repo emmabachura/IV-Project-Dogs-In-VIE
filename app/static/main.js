@@ -144,7 +144,6 @@ Promise.all([
                     Fenced zones: ${metrics.fenced_zones}<br>
                     Partially fenced zones: ${metrics.partially_fenced_zones}<br>
                     Water zones: ${metrics.water_zones}<br>
-                    Average quality score: ${metrics.average_quality_score.toFixed(1)}
                 `;
                 } else {
                     popupContent += `
