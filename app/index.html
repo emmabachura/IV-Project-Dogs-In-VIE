@@ -48,6 +48,33 @@
     </label>
     <br>
     <input id="area-slider" type="range" min="0" max="100" value="100" step="1">
+    <div class="filter-grid" aria-label="Dog zone filters">
+        <div class="filter-field">
+            <label for="water-filter">Water</label>
+            <select id="water-filter">
+                <option value="all">All zones</option>
+                <option value="yes">Water available</option>
+                <option value="no">No water</option>
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="fenced-filter">Fenced</label>
+            <select id="fenced-filter">
+                <option value="all">All zones</option>
+                <option value="yes">Fully fenced</option>
+                <option value="partially">Partially fenced</option>
+                <option value="no">Not fenced</option>
+            </select>
+        </div>
+        <div class="filter-field">
+            <label for="zone-type-filter">Zone type</label>
+            <select id="zone-type-filter">
+                <option value="all">All zone types</option>
+                <option value="dedicated">Dedicated dog zones</option>
+                <option value="general">General dog areas</option>
+            </select>
+        </div>
+    </div>
     <p id="area-filter-summary"></p>
 </div>
 <script src="/static/main.js"></script>

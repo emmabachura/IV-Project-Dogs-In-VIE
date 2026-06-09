@@ -16,6 +16,9 @@ const areaFilter = document.getElementById('area-filter');
 const toggleHeatmapButton = document.getElementById('toggle-heatmap');
 const legendDescription = document.getElementById('legend-description');
 const legendContent = document.getElementById('legend-content');
+const waterFilter = document.getElementById('water-filter');
+const fencedFilter = document.getElementById('fenced-filter');
+const zoneTypeFilter = document.getElementById('zone-type-filter');
 const zbLayersById = {};
 
 function getCssVar(name) {
@@ -40,6 +43,20 @@ function hasWater(value) {
     return value == true || value === 'True';
 }
 
+function isFullyFenced(value) {
+    return value === 'yes' || value === true || value === 'True';
+}
+
+function getFencedCategory(value) {
+    if (value === 'partially') {
+        return 'partially';
+    }
+    if (isFullyFenced(value)) {
+        return 'yes';
+    }
+    return 'no';
+}
+
 function getZoneTypePresentation(zoneType) {
     if (zoneType && zoneType.toLowerCase().includes('hundezone')) {
         return {
@@ -59,6 +76,34 @@ function getZoneTypePresentation(zoneType) {
         color: UI_COLORS.zoneGeneral,
         label: 'General Dog Area'
     };
+}
+
+function matchesZoneFilters(park, selectedMaxArea) {
+    const area = parseFloat(park.area_m2);
+    if (!(area <= selectedMaxArea)) {
+        return false;
+    }
+
+    if (waterFilter.value === 'yes' && !hasWater(park.has_water)) {
+        return false;
+    }
+    if (waterFilter.value === 'no' && hasWater(park.has_water)) {
+        return false;
+    }
+
+    if (fencedFilter.value !== 'all' && getFencedCategory(park.is_fenced) !== fencedFilter.value) {
+        return false;
+    }
+
+    const zoneType = getZoneTypePresentation(park.zone_type);
+    if (zoneTypeFilter.value === 'dedicated' && zoneType.label !== 'Dedicated Dog Zone') {
+        return false;
+    }
+    if (zoneTypeFilter.value === 'general' && zoneType.label !== 'General Dog Area') {
+        return false;
+    }
+
+    return true;
 }
 
 function createLegendItem({ swatchClass = '', swatchStyle = '', label, note = '' }) {
@@ -415,8 +460,7 @@ fetch('/api/zones')
             let visibleCount = 0;
 
             validData.forEach(park => {
-                const area = parseFloat(park.area_m2);
-                const isVisible = area <= selectedMaxArea;
+            const isVisible = matchesZoneFilters(park, selectedMaxArea);
                 const marker = leafletMarkers[park.object_id];
 
                 if (marker) {
@@ -440,10 +484,13 @@ fetch('/api/zones')
             });
 
             areaSummary.textContent =
-                `${visibleCount} of ${validData.length} dog zones are ${selectedMaxArea.toLocaleString()} m² or smaller.`;
+                `${visibleCount} of ${validData.length} dog zones match the current filters and are ${selectedMaxArea.toLocaleString()} m² or smaller.`;
         }
 
         areaSlider.addEventListener("input", updateAreaFilter);
+        waterFilter.addEventListener('change', updateAreaFilter);
+        fencedFilter.addEventListener('change', updateAreaFilter);
+        zoneTypeFilter.addEventListener('change', updateAreaFilter);
         updateAreaFilter();
 
     })
