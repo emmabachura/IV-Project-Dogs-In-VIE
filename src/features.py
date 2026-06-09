@@ -1,15 +1,27 @@
+"""
+Build extra dog and dog zone features for the Vienna project.
+This script uses the cleaned dog and dog zone files, adds district information
+to the dog zones, and creates summary metrics for districts and counting
+districts.
+"""
+
 import numpy as np
 import pandas as pd
 import geopandas as gpd
 from pathlib import Path
 
-# Paths
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 DISTRICTS_SHAPEFILE = PROJECT_ROOT / "data" / "raw" / "Zählbezirk" / "ZAEHLBEZIRKOGDPolygon.shp"
 
 
 def engineer_features():
+    """
+        Creates the final feature files used for analysis.
+        Combines dog counts, dog sizes, dog zone locations, and district boundaries.
+        It calculates values like total dogs per district, dog zone area, number of
+        zones, fencing, water availability, and space per dog.
+        """
     dogs_df = pd.read_csv(PROCESSED_DIR / "dogs_clean.csv")
     dogs_per_district = dogs_df.groupby("district")["dog_count"].sum().reset_index()
 
@@ -62,14 +74,12 @@ def engineer_features():
 
     zones_df = pd.read_csv(PROCESSED_DIR / "zones_clean.csv")
 
-    # Remove old spatial join columns from any previous runs so the new join is clean
     drop_suffixes = ["_left", "_right"]
     zones_df = zones_df.loc[:, ~zones_df.columns.str.endswith(tuple(drop_suffixes))]
 
-    # Keep only the original zone fields needed for spatial join and output
     original_zone_cols = [
         "object_id", "park_name", "phone", "zone_type", "area_m2",
-        "is_fenced", "has_water", "quality_score", "longitude", "latitude",
+        "is_fenced", "has_water", "longitude", "latitude",
         "web_link"
     ]
     zones_df = zones_df[[c for c in original_zone_cols if c in zones_df.columns]]
@@ -117,7 +127,6 @@ def engineer_features():
             fenced_zones=("is_fenced", lambda x: (x == "yes").sum()),
             partially_fenced_zones=("is_fenced", lambda x: (x == "partially").sum()),
             water_zones=("has_water", lambda x: (x != "no").sum()),
-            average_quality_score=("quality_score", "mean")
         )
     )
     zones_per_district.rename(columns={zone_district_col: "district"}, inplace=True)
