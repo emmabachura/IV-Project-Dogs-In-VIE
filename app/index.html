@@ -9,34 +9,35 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
-<header>
+<header class="page-header">
     <h1>Dog-Friendly Spaces in Vienna</h1>
-    <p>Analyzing accessibility to dog zones relative to registered dogs.</p>
+    <p>Analyzing access to dog zones relative to registered dogs.</p>
 </header>
 
-<main style="display: flex; gap: 20px;">
-    <div id="map" style="width: 50%; height: 600px;"></div>
+<main class="dashboard-layout">
+    <div id="map" class="map-panel"></div>
 
-    <section id="sidebar" style="flex: 1;">
-        <h2 id="chart-title">Dog Zone Area vs. Registered Dogs</h2>
-        <p id="chart-description">Explore how individual dog zones relate to district-level dog counts.</p>
+    <section id="sidebar" class="dashboard-panel">
+        <div class="panel-header">
+            <h2 id="chart-title">Dog Zone Area vs. Registered Dogs</h2>
+            <p id="chart-description">Explore how individual dog zones relate to district-level dog counts.</p>
+        </div>
         <div id="scatterplot"></div>
 
-        <div id="filters">
-
-            <button id="toggle-heatmap"
-                    style="padding: 10px; cursor: pointer; background-color: #f0f0f0; border: 1px solid #ccc; border-radius: 4px; font-weight: bold;">
+        <div id="filters" class="control-row">
+            <button id="toggle-heatmap" class="primary-button">
                 Show Infrastructure Heatmap (250 Tracts)
             </button>
         </div>
     </section>
 </main>
-<div id="area-filter" style="margin-top: 15px;">
+<div id="area-filter" class="dashboard-panel filter-panel">
     <label for="area-slider">
-        Max dog zone area
+        Maximum Dog Zone Area
     </label>
     <br>
-<input id="area-slider" type="range" min="0" max="100" value="100" step="1" style="width: 300px;">    <p id="area-filter-summary"></p>
+    <input id="area-slider" type="range" min="0" max="100" value="100" step="1">
+    <p id="area-filter-summary"></p>
 </div>
 <script src="/static/main.js"></script>
 </body>

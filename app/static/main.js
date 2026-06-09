@@ -8,13 +8,65 @@ let markerLayer = L.layerGroup().addTo(map);
 let allDogZones = [];
 let zaehlbezirkMetrics = [];
 let heatmapColorScale = null;
+let hoveredSubdistrictId = null;
 
 const chartTitle = document.getElementById('chart-title');
 const chartDescription = document.getElementById('chart-description');
 const areaFilter = document.getElementById('area-filter');
+const toggleHeatmapButton = document.getElementById('toggle-heatmap');
 const zbLayersById = {};
 
+function getCssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+const UI_COLORS = {
+    districtStroke: getCssVar('--district-stroke'),
+    districtFill: getCssVar('--district-fill'),
+    zoneDedicated: getCssVar('--zone-dedicated'),
+    zoneGeneral: getCssVar('--zone-general'),
+    zoneProhibited: getCssVar('--zone-prohibited'),
+    waterOutline: getCssVar('--water-outline'),
+    hoverHighlight: getCssVar('--hover-highlight'),
+    mapOutline: getCssVar('--map-outline'),
+    accentDark: getCssVar('--accent-dark'),
+    heatmapEmpty: getCssVar('--heatmap-empty')
+};
+
+function hasWater(value) {
+    return value == true || value === 'True';
+}
+
+function getZoneTypePresentation(zoneType) {
+    if (zoneType && zoneType.toLowerCase().includes('hundezone')) {
+        return {
+            color: UI_COLORS.zoneDedicated,
+            label: 'Dedicated Dog Zone'
+        };
+    }
+
+    if (zoneType && zoneType.toLowerCase().includes('verbot')) {
+        return {
+            color: UI_COLORS.zoneProhibited,
+            label: 'Restricted Area'
+        };
+    }
+
+    return {
+        color: UI_COLORS.zoneGeneral,
+        label: 'General Dog Area'
+    };
+}
+
+function updateModeUIState() {
+    document.body.classList.toggle('mode-heatmap', isHeatmapVisible);
+    toggleHeatmapButton.classList.toggle('is-active', isHeatmapVisible);
+    toggleHeatmapButton.setAttribute('aria-pressed', isHeatmapVisible ? 'true' : 'false');
+}
+
 function updateChartPanelText() {
+    updateModeUIState();
+
     if (isHeatmapVisible) {
         chartTitle.textContent = 'Top 10 Sub-districts by Infrastructure Score';
         chartDescription.textContent = 'The heatmap view ranks the strongest sub-districts using the current infrastructure score.';
@@ -51,16 +103,31 @@ function setSubdistrictHighlight(zbezId, isHighlighted) {
 
     layer.setStyle({
         weight: isHighlighted ? 3 : 1,
-        color: isHighlighted ? '#1b4332' : '#000000',
+        color: isHighlighted ? UI_COLORS.accentDark : UI_COLORS.mapOutline,
         fillOpacity: isHighlighted ? 0.82 : 0.6
     });
 
     if (isHighlighted) {
         layer.bringToFront();
-        layer.openPopup();
-    } else {
-        layer.closePopup();
     }
+}
+
+function clearHoveredSubdistrict() {
+    if (hoveredSubdistrictId === null) {
+        return;
+    }
+
+    setSubdistrictHighlight(hoveredSubdistrictId, false);
+    hoveredSubdistrictId = null;
+}
+
+function setHoveredSubdistrict(zbezId) {
+    if (hoveredSubdistrictId !== null && hoveredSubdistrictId !== zbezId) {
+        setSubdistrictHighlight(hoveredSubdistrictId, false);
+    }
+
+    hoveredSubdistrictId = zbezId;
+    setSubdistrictHighlight(zbezId, true);
 }
 
 map.on('popupclose', function () {
@@ -108,9 +175,9 @@ Promise.all([
         districtLayer = L.geoJSON(districtData, {
             interactive: true,
             style: {
-                color: "#333",
+                color: UI_COLORS.districtStroke,
                 weight: 1,
-                fillColor: "#90caf9",
+                fillColor: UI_COLORS.districtFill,
                 fillOpacity: 0.15
             },
             onEachFeature: function (feature, layer) {
@@ -130,15 +197,15 @@ Promise.all([
                 if (metrics) {
                     popupContent += `
                     <hr>
-                    <b>Dog statistics</b><br>
-                    Total dogs: ${metrics.dog_count}<br>
+                    <b>Dog Statistics</b><br>
+                    Registered dogs: ${metrics.dog_count}<br>
                     Small dogs: ${metrics.small_dog_count} (${metrics.small_dog_percent.toFixed(1)}%)<br>
                     Medium dogs: ${metrics.medium_dog_count} (${metrics.medium_dog_percent.toFixed(1)}%)<br>
                     Large dogs: ${metrics.large_dog_count} (${metrics.large_dog_percent.toFixed(1)}%)<br>
                     Unknown size: ${metrics.unknown_dog_count} (${metrics.unknown_dog_percent.toFixed(1)}%)<br>
                     <hr>
-                    <b>Dog zone statistics</b><br>
-                    Dog zones: ${metrics.zone_count}<br>
+                    <b>Dog Zone Statistics</b><br>
+                    Total dog zones: ${metrics.zone_count}<br>
                     Total dog zone area: ${Math.round(metrics.total_zone_area_m2).toLocaleString()} m²<br>
                     Space per dog: ${metrics.space_per_dog_m2.toFixed(1)} m²<br>
                     Fenced zones: ${metrics.fenced_zones}<br>
@@ -215,55 +282,48 @@ fetch('/api/zones')
         validData.forEach(park => {
             const lat = parseFloat(park.latitude);
             const lng = parseFloat(park.longitude);
-
-            let parkColor = "#ff7800";
-            let typeDescription = park.zone_type || "Unknown";
-
-            if (park.zone_type && park.zone_type.toLowerCase().includes("hundezone")) {
-                parkColor = "#388e3c";
-                typeDescription = "Dedicated Dog Zone";
-            }
+            const zoneType = getZoneTypePresentation(park.zone_type);
 
             const circle = L.circleMarker([lat, lng], {
                 radius: 6,
-                fillColor: parkColor,
-                color: "#000",
+                fillColor: zoneType.color,
+                color: UI_COLORS.mapOutline,
                 weight: 1,
                 opacity: 1,
                 fillOpacity: 0.8
             }).addTo(markerLayer);
 
             let popupContent = `<b>${park.park_name}</b><br>`;
-            popupContent += `Type: ${typeDescription}<br>`;
+            popupContent += `Type: ${zoneType.label}<br>`;
             popupContent += `Area: ${park.area_m2 || 'Unknown'} m²<br>`;
             popupContent += `Fenced: ${park.is_fenced == true || park.is_fenced === 'True' ? 'Yes' : 'No'}<br>`;
-            popupContent += `Water: ${park.has_water == true || park.has_water === 'True' ? 'Yes' : 'No'}`;
+            popupContent += `Water available: ${hasWater(park.has_water) ? 'Yes' : 'No'}`;
 
             circle.bindPopup(popupContent);
             leafletMarkers[park.object_id] = circle;
 
             circle.on('mouseover', function () {
-                this.setStyle({color: "yellow", weight: 5});
+                this.setStyle({color: UI_COLORS.hoverHighlight, weight: 5});
                 this.openPopup();
 
                 d3.select("#dot-" + park.object_id)
                     .style("opacity", 1)
                     .attr("r", 10)
-                    .style("stroke", "yellow")
+                    .style("stroke", UI_COLORS.hoverHighlight)
                     .style("stroke-width", 3);
             });
 
             circle.on('mouseout', function () {
-                this.setStyle({color: "#000", weight: 1});
+                this.setStyle({color: UI_COLORS.mapOutline, weight: 1});
                 this.closePopup();
 
-                const hasWater = park.has_water == true || park.has_water === 'True';
+                const parkHasWater = hasWater(park.has_water);
 
                 d3.select("#dot-" + park.object_id)
                     .style("opacity", 0.8)
                     .attr("r", 6)
-                    .style("stroke", hasWater ? "#00e5ff" : "black")
-                    .style("stroke-width", hasWater ? 2.5 : 1);
+                    .style("stroke", parkHasWater ? UI_COLORS.waterOutline : UI_COLORS.mapOutline)
+                    .style("stroke-width", parkHasWater ? 2.5 : 1);
             });
         });
 
@@ -389,26 +449,24 @@ function drawScatterplot(data, markers) {
         .attr("cy", d => yScale(parseFloat(d.district_dog_count)))
         .attr("r", 6)
         .style("fill", d => {
-            if (d.zone_type && d.zone_type.toLowerCase().includes("verbot")) return "#d32f2f"; // Red
-            if (d.zone_type && d.zone_type.toLowerCase().includes("hundezone")) return "#388e3c"; // Green
-            return "#ff7800"; // Orange
+            return getZoneTypePresentation(d.zone_type).color;
         })
         .style("opacity", 0.8)
         // VISUAL ENCODING: Highlight parks that have water with a bright blue border!
-        .style("stroke", d => (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
-        .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1)
+        .style("stroke", d => hasWater(d.has_water) ? UI_COLORS.waterOutline : UI_COLORS.mapOutline)
+        .style("stroke-width", d => hasWater(d.has_water) ? 2.5 : 1)
 
         // 5. BRUSHING AND LINKING
         .on("mouseover", function (event, d) {
             d3.select(this)
                 .style("opacity", 1)
                 .attr("r", 10)
-                .style("stroke", "yellow")
+                .style("stroke", UI_COLORS.hoverHighlight)
                 .style("stroke-width", 3);
 
             const linkedMarker = markers[d.object_id];
             if (linkedMarker) {
-                linkedMarker.setStyle({color: "yellow", weight: 5});
+                linkedMarker.setStyle({color: UI_COLORS.hoverHighlight, weight: 5});
                 linkedMarker.openPopup();
             }
         })
@@ -417,12 +475,12 @@ function drawScatterplot(data, markers) {
                 .style("opacity", 0.8)
                 .attr("r", 6)
                 // Reset the stroke back to blue (if it has water) or black (if no water)
-                .style("stroke", (d.has_water == true || d.has_water === 'True') ? "#00e5ff" : "black")
-                .style("stroke-width", (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+                .style("stroke", hasWater(d.has_water) ? UI_COLORS.waterOutline : UI_COLORS.mapOutline)
+                .style("stroke-width", hasWater(d.has_water) ? 2.5 : 1);
 
             const linkedMarker = markers[d.object_id];
             if (linkedMarker) {
-                linkedMarker.setStyle({color: "#000", weight: 1});
+                linkedMarker.setStyle({color: UI_COLORS.mapOutline, weight: 1});
                 linkedMarker.closePopup();
             }
         });
@@ -483,7 +541,7 @@ function drawTopSubdistrictChart(data) {
         .attr('height', yScale.bandwidth())
         .attr('fill', d => heatmapColorScale ? heatmapColorScale(Number(d.infra_score)) : '#90be6d')
         .on('mouseover', function (event, d) {
-            d3.select(this).attr('fill', '#2d6a4f');
+            d3.select(this).attr('fill', UI_COLORS.accentDark);
             setSubdistrictHighlight(Number(d.ZBEZ), true);
         })
         .on('mouseout', function (event, d) {
@@ -537,11 +595,12 @@ Promise.all([
             const score = metrics ? metrics.infra_score : 0;
 
             const fillColor = score > 0 ? heatmapColorScale(score) : "#ff7b7b";
+            const resolvedFillColor = score > 0 ? heatmapColorScale(score) : UI_COLORS.heatmapEmpty;
 
             return {
-                color: "#000000",
+                color: UI_COLORS.mapOutline,
                 weight: 1,
-                fillColor: fillColor,
+                fillColor: resolvedFillColor,
                 fillOpacity: 0.6
             };
         },
@@ -551,20 +610,34 @@ Promise.all([
             const metrics = metricsByZb[zbezId];
             zbLayersById[zbezId] = layer;
 
+            layer.on('mouseover', function () {
+                setHoveredSubdistrict(zbezId);
+            });
+
+            layer.on('mouseout', function () {
+                if (hoveredSubdistrictId === zbezId) {
+                    clearHoveredSubdistrict();
+                }
+            });
+
             if (metrics) {
                 layer.bindPopup(`
                     <b>Sub-district ${zbezId}</b><br>
                     Infrastructure Rank: #${metrics.infra_rank}<br>
-                    Score: ${Math.round(metrics.infra_score)}<br>
-                    Total Parks: ${metrics.zone_count}
+                    Infrastructure score: ${Math.round(metrics.infra_score)}<br>
+                    Total dog zones: ${metrics.zone_count}
                 `);
             } else {
-                layer.bindPopup(`<b>Sub-district ${zbezId}</b><br>No dog parks here.`);
+                layer.bindPopup(`<b>Sub-district ${zbezId}</b><br>No dog zones here.`);
             }
         }
     });
 
     renderActiveChart();
+});
+
+map.getContainer().addEventListener('mouseleave', function () {
+    clearHoveredSubdistrict();
 });
 
 
@@ -581,13 +654,13 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
         map.removeLayer(districtLayer);
         map.addLayer(zbLayer);
         map.removeLayer(markerLayer);   // <--- NEW: Hide the dots!
-        this.innerText = "Show District Borders (23)";
+        this.innerText = "Show District Borders (23 Districts)";
     } else {
         // Switch to Districts
         map.removeLayer(zbLayer);
         map.addLayer(districtLayer);
         map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
-        this.innerText = "Show Infrastructure Heatmap (250 Tracts)";
+        this.innerText = "Show Infrastructure Heatmap (250 Sub-districts)";
     }
 
     renderActiveChart();
@@ -596,3 +669,5 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
         map.invalidateSize();
     });
 });
+
+updateModeUIState();
