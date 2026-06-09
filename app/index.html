@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Vienna Dog Zones Visualization</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <script src="https://d3js.org/d3.v7.min.js"></script>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
@@ -26,9 +29,17 @@
 
         <div id="filters" class="control-row">
             <button id="toggle-heatmap" class="primary-button">
-                Show Infrastructure Heatmap (250 Tracts)
+                Heatmap View
             </button>
         </div>
+
+        <section id="legend-panel" class="legend-panel" aria-labelledby="legend-title">
+            <div class="legend-header">
+                <h3 id="legend-title">Legend</h3>
+                <p id="legend-description">How to read the current map and chart encodings.</p>
+            </div>
+            <div id="legend-content"></div>
+        </section>
     </section>
 </main>
 <div id="area-filter" class="dashboard-panel filter-panel">

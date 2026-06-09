@@ -14,6 +14,8 @@ const chartTitle = document.getElementById('chart-title');
 const chartDescription = document.getElementById('chart-description');
 const areaFilter = document.getElementById('area-filter');
 const toggleHeatmapButton = document.getElementById('toggle-heatmap');
+const legendDescription = document.getElementById('legend-description');
+const legendContent = document.getElementById('legend-content');
 const zbLayersById = {};
 
 function getCssVar(name) {
@@ -23,6 +25,7 @@ function getCssVar(name) {
 const UI_COLORS = {
     districtStroke: getCssVar('--district-stroke'),
     districtFill: getCssVar('--district-fill'),
+    heatmapStroke: getCssVar('--heatmap-stroke'),
     zoneDedicated: getCssVar('--zone-dedicated'),
     zoneGeneral: getCssVar('--zone-general'),
     zoneProhibited: getCssVar('--zone-prohibited'),
@@ -58,6 +61,65 @@ function getZoneTypePresentation(zoneType) {
     };
 }
 
+function createLegendItem({ swatchClass = '', swatchStyle = '', label, note = '' }) {
+    const styleAttribute = swatchStyle ? ` style="${swatchStyle}"` : '';
+
+    return `
+        <div class="legend-item">
+            <span class="legend-swatch ${swatchClass}"${styleAttribute}></span>
+            <div>
+                <div class="legend-label">${label}</div>
+                ${note ? `<div class="legend-note">${note}</div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function updateLegend() {
+    if (!legendDescription || !legendContent) {
+        return;
+    }
+
+    if (isHeatmapVisible) {
+        const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 0;
+
+        legendDescription.textContent = 'Green tones show stronger infrastructure scores across sub-districts.';
+        legendContent.innerHTML = `
+            <div class="legend-group">
+                <div class="legend-group-title">Heatmap Scale</div>
+                <div class="legend-gradient"></div>
+                <div class="legend-range">
+                    <span>Low score</span>
+                    <span>High score (${Math.round(maxScore)})</span>
+                </div>
+                ${createLegendItem({
+                    swatchStyle: `background:${UI_COLORS.heatmapEmpty};`,
+                    label: 'No dog zones or no score',
+                    note: 'Pink areas have no dog zones or no usable score.'
+                })}
+            </div>
+        `;
+        return;
+    }
+
+    legendDescription.textContent = 'District mode combines map markers and scatterplot points for dog zone comparison.';
+    legendContent.innerHTML = `
+        <div class="legend-group">
+            <div class="legend-group-title">Zone Type</div>
+            ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneDedicated};`, label: 'Dedicated dog zone' })}
+            ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneGeneral};`, label: 'General dog area' })}
+        </div>
+        <div class="legend-group">
+            <div class="legend-group-title">Extra Encoding</div>
+            ${createLegendItem({
+                swatchClass: 'legend-swatch-water',
+                label: 'Water available',
+                note: 'Shown as a blue outline on scatterplot points.'
+            })}
+        </div>
+    `;
+}
+
 function updateModeUIState() {
     document.body.classList.toggle('mode-heatmap', isHeatmapVisible);
     toggleHeatmapButton.classList.toggle('is-active', isHeatmapVisible);
@@ -66,10 +128,11 @@ function updateModeUIState() {
 
 function updateChartPanelText() {
     updateModeUIState();
+    updateLegend();
 
     if (isHeatmapVisible) {
-        chartTitle.textContent = 'Top 10 Sub-districts by Infrastructure Score';
-        chartDescription.textContent = 'The heatmap view ranks the strongest sub-districts using the current infrastructure score.';
+        chartTitle.textContent = 'Top 10 Sub-districts';
+        chartDescription.textContent = 'Ranked by the current infrastructure score.';
         areaFilter.style.display = 'none';
         return;
     }
@@ -103,7 +166,7 @@ function setSubdistrictHighlight(zbezId, isHighlighted) {
 
     layer.setStyle({
         weight: isHighlighted ? 3 : 1,
-        color: isHighlighted ? UI_COLORS.accentDark : UI_COLORS.mapOutline,
+        color: isHighlighted ? UI_COLORS.accentDark : UI_COLORS.heatmapStroke,
         fillOpacity: isHighlighted ? 0.82 : 0.6
     });
 
@@ -594,11 +657,10 @@ Promise.all([
 
             const score = metrics ? metrics.infra_score : 0;
 
-            const fillColor = score > 0 ? heatmapColorScale(score) : "#ff7b7b";
             const resolvedFillColor = score > 0 ? heatmapColorScale(score) : UI_COLORS.heatmapEmpty;
 
             return {
-                color: UI_COLORS.mapOutline,
+                color: UI_COLORS.heatmapStroke,
                 weight: 1,
                 fillColor: resolvedFillColor,
                 fillOpacity: 0.6
@@ -634,6 +696,7 @@ Promise.all([
     });
 
     renderActiveChart();
+    updateLegend();
 });
 
 map.getContainer().addEventListener('mouseleave', function () {
@@ -654,13 +717,13 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
         map.removeLayer(districtLayer);
         map.addLayer(zbLayer);
         map.removeLayer(markerLayer);   // <--- NEW: Hide the dots!
-        this.innerText = "Show District Borders (23 Districts)";
+        this.innerText = "District View";
     } else {
         // Switch to Districts
         map.removeLayer(zbLayer);
         map.addLayer(districtLayer);
         map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
-        this.innerText = "Show Infrastructure Heatmap (250 Sub-districts)";
+        this.innerText = "Heatmap View";
     }
 
     renderActiveChart();
