@@ -14,6 +14,8 @@ const chartTitle = document.getElementById('chart-title');
 const chartDescription = document.getElementById('chart-description');
 const areaFilter = document.getElementById('area-filter');
 const toggleHeatmapButton = document.getElementById('toggle-heatmap');
+const legendDescription = document.getElementById('legend-description');
+const legendContent = document.getElementById('legend-content');
 const zbLayersById = {};
 
 function getCssVar(name) {
@@ -58,6 +60,65 @@ function getZoneTypePresentation(zoneType) {
     };
 }
 
+function createLegendItem({ swatchClass = '', swatchStyle = '', label, note = '' }) {
+    const styleAttribute = swatchStyle ? ` style="${swatchStyle}"` : '';
+
+    return `
+        <div class="legend-item">
+            <span class="legend-swatch ${swatchClass}"${styleAttribute}></span>
+            <div>
+                <div class="legend-label">${label}</div>
+                ${note ? `<div class="legend-note">${note}</div>` : ''}
+            </div>
+        </div>
+    `;
+}
+
+function updateLegend() {
+    if (!legendDescription || !legendContent) {
+        return;
+    }
+
+    if (isHeatmapVisible) {
+        const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 0;
+
+        legendDescription.textContent = 'The heatmap colors and Top 10 bars use the same infrastructure score scale.';
+        legendContent.innerHTML = `
+            <div class="legend-group">
+                <div class="legend-group-title">Heatmap Scale</div>
+                <div class="legend-gradient"></div>
+                <div class="legend-range">
+                    <span>Low score</span>
+                    <span>High score (${Math.round(maxScore)})</span>
+                </div>
+                ${createLegendItem({
+                    swatchStyle: `background:${UI_COLORS.heatmapEmpty};`,
+                    label: 'No dog zones or no score',
+                    note: 'Sub-districts shown in pink do not have usable infrastructure-score data.'
+                })}
+            </div>
+        `;
+        return;
+    }
+
+    legendDescription.textContent = 'District mode combines map markers and scatterplot points for dog zone comparison.';
+    legendContent.innerHTML = `
+        <div class="legend-group">
+            <div class="legend-group-title">Zone Type</div>
+            ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneDedicated};`, label: 'Dedicated dog zone' })}
+            ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneGeneral};`, label: 'General dog area' })}
+        </div>
+        <div class="legend-group">
+            <div class="legend-group-title">Extra Encoding</div>
+            ${createLegendItem({
+                swatchClass: 'legend-swatch-water',
+                label: 'Water available',
+                note: 'Shown as a blue outline on scatterplot points.'
+            })}
+        </div>
+    `;
+}
+
 function updateModeUIState() {
     document.body.classList.toggle('mode-heatmap', isHeatmapVisible);
     toggleHeatmapButton.classList.toggle('is-active', isHeatmapVisible);
@@ -66,6 +127,7 @@ function updateModeUIState() {
 
 function updateChartPanelText() {
     updateModeUIState();
+    updateLegend();
 
     if (isHeatmapVisible) {
         chartTitle.textContent = 'Top 10 Sub-districts by Infrastructure Score';
@@ -634,6 +696,7 @@ Promise.all([
     });
 
     renderActiveChart();
+    updateLegend();
 });
 
 map.getContainer().addEventListener('mouseleave', function () {
