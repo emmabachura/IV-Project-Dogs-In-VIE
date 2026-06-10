@@ -27,7 +27,7 @@
 body {
 	margin: 0;
 	padding: 24px;
-	background: linear-gradient(180deg, #f8f3e8 0%, #eef3ea 100%);
+	background: var(--page-background);
 	color: var(--text-strong);
 	font-family: "Manrope", "Segoe UI", sans-serif;
 }

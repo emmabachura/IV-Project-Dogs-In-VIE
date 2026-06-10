@@ -1,4 +1,3 @@
-// Initialize the map, center it on Vienna, and set the zoom to 12
 const map = L.map('map').setView([48.2082, 16.3738], 12);
 let activeDistrictClick = null;
 let districtLayer;
@@ -239,17 +238,13 @@ function setHoveredSubdistrict(zbezId) {
 }
 
 map.on('popupclose', function () {
-
-    // If a district filter was active, clear it out!
     if (activeDistrictClick !== null) {
         activeDistrictClick = null;
-
-        // Reset all D3 dots back to their normal state
         d3.selectAll(".dot")
             .transition().duration(300)
             .style("opacity", 0.8)
             .attr("r", 6)
-            .style("pointer-events", "all") // Reset pointer events
+            .style("pointer-events", "all")
             .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
     }
 });
@@ -343,24 +338,17 @@ Promise.all([
                     districtLayer.resetStyle(layer);
                 });
                 layer.on("click", function () {
-
-                    // If they click the exact same district again, turn the filter OFF
                     if (activeDistrictClick === districtNumber) {
                         activeDistrictClick = null;
-
-                        // Reset all D3 dots back to normal
                         d3.selectAll(".dot")
-                            .transition().duration(300) // Smooth animation!
+                            .transition().duration(300)
                             .style("opacity", 0.8)
                             .attr("r", 6)
                             .style("pointer-events", "all")
                             .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
 
                     } else {
-                        // Turn the filter ON for the newly clicked district
                         activeDistrictClick = districtNumber;
-
-                        // Fade out dots from other districts, enlarge the matching ones
                         d3.selectAll(".dot")
                             .transition().duration(300)
                             .style("opacity", d => parseInt(d.district) === districtNumber ? 1 : 0.05)
@@ -443,8 +431,6 @@ fetch('/api/zones')
 
         allDogZones = validData;
         renderActiveChart();
-
-        // AREA SLIDER: one slider step = one unique dog-zone area value
         uniqueAreaValues = [...new Set(
             validData
                 .map(d => Math.round(parseFloat(d.area_m2)))
@@ -505,7 +491,6 @@ fetch('/api/zones')
     .catch(error => console.error("Error loading dog zones:", error));
 
 function drawScatterplot(data, markers) {
-    // 1. Set up dimensions
     const container = document.getElementById("scatterplot");
     const margin = {top: 20, right: 20, bottom: 64, left: 74};
     const outerWidth = container.clientWidth || 400;
@@ -521,18 +506,14 @@ function drawScatterplot(data, markers) {
         .append("g")
         .attr("transform", `translate(${margin.left},${margin.top})`);
 
-    // 2. Set up Scales
     const xScale = d3.scaleLog()
         .domain([10, d3.max(data, d => parseFloat(d.area_m2))])
         .range([0, width]);
 
-    // CHANGED: Y-Axis now uses the district dog count. 
-    // (Multiplying by 1.1 adds 10% padding to the top of the chart so dots don't hit the ceiling)
     const yScale = d3.scaleLinear()
         .domain([0, d3.max(data, d => parseFloat(d.district_dog_count)) * 1.1])
         .range([height, 0]);
 
-    // 3. Draw Axes
     svg.append("g")
         .attr("transform", `translate(0,${height})`)
         .call(d3.axisBottom(xScale).ticks(5, "~s"));
@@ -540,14 +521,12 @@ function drawScatterplot(data, markers) {
     svg.append("g")
         .call(d3.axisLeft(yScale).ticks(5));
 
-    // Axis Labels
     svg.append("text")
         .attr("x", width / 2)
         .attr("y", height + 52)
         .style("text-anchor", "middle")
         .text("Park Area (m²) - Log Scale");
 
-    // CHANGED: Updated Y-Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
         .attr("y", -56)
@@ -555,7 +534,6 @@ function drawScatterplot(data, markers) {
         .style("text-anchor", "middle")
         .text("Total Registered Dogs in District");
 
-    // 4. Draw the Dots!
     svg.selectAll(".dot")
         .data(data)
         .enter()
@@ -563,18 +541,14 @@ function drawScatterplot(data, markers) {
         .attr("class", "dot")
         .attr("id", d => "dot-" + d.object_id)
         .attr("cx", d => xScale(parseFloat(d.area_m2)))
-        // CHANGED: Plot the Y-coordinate using the district dog count
         .attr("cy", d => yScale(parseFloat(d.district_dog_count)))
         .attr("r", 6)
         .style("fill", d => {
             return getZoneTypePresentation(d.zone_type).color;
         })
         .style("opacity", 0.8)
-        // VISUAL ENCODING: Highlight parks that have water with a bright blue border!
         .style("stroke", d => hasWater(d.has_water) ? UI_COLORS.waterOutline : UI_COLORS.mapOutline)
         .style("stroke-width", d => hasWater(d.has_water) ? 2.5 : 1)
-
-        // 5. BRUSHING AND LINKING
         .on("mouseover", function (event, d) {
             d3.select(this)
                 .style("opacity", 1)
@@ -592,7 +566,6 @@ function drawScatterplot(data, markers) {
             d3.select(this)
                 .style("opacity", 0.8)
                 .attr("r", 6)
-                // Reset the stroke back to blue (if it has water) or black (if no water)
                 .style("stroke", hasWater(d.has_water) ? UI_COLORS.waterOutline : UI_COLORS.mapOutline)
                 .style("stroke-width", hasWater(d.has_water) ? 2.5 : 1);
 
@@ -691,19 +664,15 @@ Promise.all([
         };
     }).filter(row => !isNaN(row.ZBEZ));
 
-    // Map the metrics by ZBEZ ID for fast lookup
     const metricsByZb = {};
     zaehlbezirkMetrics.forEach(row => {
-        // Find the correct column name and FORCE it to a standard Number to drop leading zeros
         metricsByZb[row.ZBEZ] = row;
     });
 
-    // Create a D3 Color Scale for the Heatmap
     const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 100;
     heatmapColorScale = d3.scaleSequential(d3.interpolateYlGn)
         .domain([0, maxScore]);
 
-    // Draw the 250 tracts on Leaflet
     zbLayer = L.geoJSON(zbShapes, {
         style: function (feature) {
             const rawId = feature.properties.ZBEZ || feature.properties.ZBEZNR;
@@ -768,16 +737,14 @@ document.getElementById('toggle-heatmap').addEventListener('click', function () 
     isHeatmapVisible = !isHeatmapVisible;
 
     if (isHeatmapVisible) {
-        // Switch to Heatmap
         map.removeLayer(districtLayer);
         map.addLayer(zbLayer);
-        map.removeLayer(markerLayer);   // <--- NEW: Hide the dots!
+        map.removeLayer(markerLayer);
         this.innerText = "District View";
     } else {
-        // Switch to Districts
         map.removeLayer(zbLayer);
         map.addLayer(districtLayer);
-        map.addLayer(markerLayer);      // <--- NEW: Bring the dots back!
+        map.addLayer(markerLayer);
         this.innerText = "Heatmap View";
     }
 
