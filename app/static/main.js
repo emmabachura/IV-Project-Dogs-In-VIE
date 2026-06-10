@@ -307,7 +307,8 @@ Promise.all([
                     <hr>
                     <b>District Score</b><br>
                     Overall score: ${metrics.district_score.toFixed(1)} / 100<br>
-                    Average sub-district infrastructure: ${metrics.district_avg_infra_score.toFixed(1)}<br>
+                    Infrastructure score: ${metrics.infrastructure_component_score.toFixed(1)} / 100<br>
+                    Dog pressure score: ${metrics.dog_pressure_component_score.toFixed(1)} / 100<br>
                     Effective dog demand: ${Math.round(metrics.effective_dog_count).toLocaleString()}<br>
                     <hr>
                     <b>Dog Statistics</b><br>

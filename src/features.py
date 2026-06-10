@@ -172,14 +172,15 @@ def engineer_features():
 
     zb_zones.rename(columns={zb_district_col: "ZBEZ"}, inplace=True)
     zb_zones["ZBEZ"] = pd.to_numeric(zb_zones["ZBEZ"], errors="coerce")
-    zb_zones["infra_score"] = (
-            (zb_zones["zone_count"] * 25) +
-            (zb_zones["fenced_count"] * 15) +
-            (zb_zones["water_count"] * 15) +
-            (np.log10(zb_zones["total_area"] + 1) * 10)
+    zb_zones["infra_score_raw"] = (
+        (zb_zones["zone_count"] * 25) +
+        (zb_zones["fenced_count"] * 15) +
+        (zb_zones["water_count"] * 15) +
+        (np.log10(zb_zones["total_area"] + 1) * 10)
     )
+    zb_zones["infra_score"] = min_max_scale(zb_zones["infra_score_raw"])
 
-    zb_zones["infra_rank"] = zb_zones["infra_score"].rank(ascending=False, method="min")
+    zb_zones["infra_rank"] = zb_zones["infra_score_raw"].rank(ascending=False, method="min")
 
     district_subdistricts = (
         districts_gdf[["BEZNR", "ZBEZ"]]
