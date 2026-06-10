@@ -452,6 +452,7 @@ fetch('/api/zones')
         )].sort((a, b) => a - b);
 
         const areaSlider = document.getElementById("area-slider");
+        const areaSliderValue = document.getElementById("area-slider-value");
         const areaSummary = document.getElementById("area-filter-summary");
 
         areaSlider.min = 0;
@@ -490,7 +491,8 @@ fetch('/api/zones')
             });
 
             areaSummary.textContent =
-                `${visibleCount} of ${validData.length} dog zones match the current filters and are ${selectedMinArea.toLocaleString()} m² or larger.`;
+                `${visibleCount}/${validData.length} zones match the filters.`;
+            areaSliderValue.textContent = `${selectedMinArea.toLocaleString()} m²+`;
         }
 
         areaSlider.addEventListener("input", updateAreaFilter);
