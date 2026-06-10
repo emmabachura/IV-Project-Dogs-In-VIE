@@ -6,9 +6,13 @@ let zbLayer;
 let isHeatmapVisible = false;
 let markerLayer = L.layerGroup().addTo(map);
 let allDogZones = [];
+let districtMetrics = [];
 let zaehlbezirkMetrics = [];
 let heatmapColorScale = null;
 let hoveredSubdistrictId = null;
+let districtColorScale = null;
+let districtMetricsById = {};
+const districtLayersById = {};
 
 const chartTitle = document.getElementById('chart-title');
 const chartDescription = document.getElementById('chart-description');
@@ -38,6 +42,104 @@ const UI_COLORS = {
     accentDark: getCssVar('--accent-dark'),
     heatmapEmpty: getCssVar('--heatmap-empty')
 };
+
+const DISTRICT_CHOROPLETH_FIELD = 'space_per_dog_m2';
+const DISTRICT_CHOROPLETH_LABEL = 'Dog-zone area per registered dog';
+
+function getDistrictMetricValue(metrics) {
+    const value = metrics ? Number(metrics[DISTRICT_CHOROPLETH_FIELD]) : NaN;
+    return Number.isFinite(value) ? value : NaN;
+}
+
+function getDistrictFillColor(metrics) {
+    const metricValue = getDistrictMetricValue(metrics);
+
+    if (!Number.isFinite(metricValue) || !districtColorScale) {
+        return UI_COLORS.districtFill;
+    }
+
+    return districtColorScale(metricValue);
+}
+
+function getDistrictStyle(feature) {
+    const districtNumber = Number(feature.properties.BEZNR || '');
+    const metrics = districtMetricsById[districtNumber];
+    const hasMetric = Number.isFinite(getDistrictMetricValue(metrics));
+
+    return {
+        color: UI_COLORS.districtStroke,
+        weight: 1,
+        fillColor: getDistrictFillColor(metrics),
+        fillOpacity: hasMetric ? 0.68 : 0.22
+    };
+}
+
+function setDistrictHighlight(districtId, isHighlighted) {
+    const layer = districtLayersById[districtId];
+
+    if (!layer) {
+        return;
+    }
+
+    const baseStyle = getDistrictStyle(layer.feature);
+    layer.setStyle({
+        ...baseStyle,
+        weight: isHighlighted ? 3 : baseStyle.weight,
+        color: isHighlighted ? UI_COLORS.accentDark : baseStyle.color,
+        fillOpacity: isHighlighted ? 0.84 : baseStyle.fillOpacity
+    });
+}
+
+function applyDistrictPointSelection() {
+    const dots = d3.selectAll('.dot');
+
+    if (activeDistrictClick === null) {
+        dots
+            .transition().duration(300)
+            .style('opacity', 0.88)
+            .attr('r', 7)
+            .style('pointer-events', 'all')
+            .style('stroke', UI_COLORS.mapOutline)
+            .style('stroke-width', 1.2);
+        return;
+    }
+
+    dots
+        .transition().duration(300)
+        .style('opacity', d => Number(d.district) === activeDistrictClick ? 1 : 0.08)
+        .attr('r', d => Number(d.district) === activeDistrictClick ? 10 : 4)
+        .style('pointer-events', d => Number(d.district) === activeDistrictClick ? 'all' : 'none')
+        .style('stroke', d => Number(d.district) === activeDistrictClick ? UI_COLORS.hoverHighlight : UI_COLORS.mapOutline)
+        .style('stroke-width', d => Number(d.district) === activeDistrictClick ? 3 : 1);
+}
+
+function toggleActiveDistrictSelection(districtNumber) {
+    const previousSelection = activeDistrictClick;
+
+    if (previousSelection !== null && previousSelection !== districtNumber) {
+        setDistrictHighlight(previousSelection, false);
+    }
+
+    if (activeDistrictClick === districtNumber) {
+        activeDistrictClick = null;
+        setDistrictHighlight(districtNumber, false);
+
+        const layer = districtLayersById[districtNumber];
+        if (layer) {
+            layer.closePopup();
+        }
+    } else {
+        activeDistrictClick = districtNumber;
+        setDistrictHighlight(districtNumber, true);
+
+        const layer = districtLayersById[districtNumber];
+        if (layer) {
+            layer.openPopup();
+        }
+    }
+
+    applyDistrictPointSelection();
+}
 
 function hasWater(value) {
     return value == true || value === 'True';
@@ -147,20 +249,31 @@ function updateLegend() {
         return;
     }
 
-    legendDescription.textContent = 'District mode combines map markers and scatterplot points for dog zone comparison.';
+    const maxDistrictMetric = d3.max(Object.values(districtMetricsById), getDistrictMetricValue) || 0;
+    const midDistrictMetric = maxDistrictMetric / 2;
+    const districtGradientStyle = districtColorScale
+        ? `background:linear-gradient(90deg, ${districtColorScale(0)} 0%, ${districtColorScale(midDistrictMetric)} 50%, ${districtColorScale(maxDistrictMetric)} 100%);`
+        : '';
+
+    legendDescription.textContent = 'District colors show available dog-zone area per registered dog, while point markers summarize each district.';
     legendContent.innerHTML = `
+        <div class="legend-group">
+            <div class="legend-group-title">District Choropleth</div>
+            <div class="legend-gradient" style="${districtGradientStyle}"></div>
+            <div class="legend-range">
+                <span>Lower access</span>
+                <span>Higher access (${maxDistrictMetric.toFixed(1)} m²/dog)</span>
+            </div>
+            ${createLegendItem({
+                swatchStyle: `background:${UI_COLORS.districtFill};`,
+                label: 'No district metric',
+                note: 'Neutral fill means no usable district value is available.'
+            })}
+        </div>
         <div class="legend-group">
             <div class="legend-group-title">Zone Type</div>
             ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneDedicated};`, label: 'Dedicated dog zone' })}
             ${createLegendItem({ swatchStyle: `background:${UI_COLORS.zoneGeneral};`, label: 'General dog area' })}
-        </div>
-        <div class="legend-group">
-            <div class="legend-group-title">Extra Encoding</div>
-            ${createLegendItem({
-                swatchClass: 'legend-swatch-water',
-                label: 'Water available',
-                note: 'Shown as a blue outline on scatterplot points.'
-            })}
         </div>
     `;
 }
@@ -182,8 +295,8 @@ function updateChartPanelText() {
         return;
     }
 
-    chartTitle.textContent = 'Dog Zone Area vs. Registered Dogs';
-    chartDescription.textContent = 'Explore how individual dog zones relate to district-level dog counts.';
+    chartTitle.textContent = 'District Dog Zone Area vs. Registered Dogs';
+    chartDescription.textContent = 'Each point summarizes one district using total dog-zone area and registered dogs.';
     areaFilter.style.display = '';
 }
 
@@ -197,8 +310,8 @@ function renderActiveChart() {
         return;
     }
 
-    if (allDogZones.length > 0) {
-        drawScatterplot(allDogZones, leafletMarkers);
+    if (districtMetrics.length > 0) {
+        drawDistrictScatterplot(districtMetrics);
     }
 }
 
@@ -239,18 +352,10 @@ function setHoveredSubdistrict(zbezId) {
 }
 
 map.on('popupclose', function () {
-
-    // If a district filter was active, clear it out!
     if (activeDistrictClick !== null) {
+        setDistrictHighlight(activeDistrictClick, false);
         activeDistrictClick = null;
-
-        // Reset all D3 dots back to their normal state
-        d3.selectAll(".dot")
-            .transition().duration(300)
-            .style("opacity", 0.8)
-            .attr("r", 6)
-            .style("pointer-events", "all") // Reset pointer events
-            .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
+        applyDistrictPointSelection();
     }
 });
 
@@ -275,19 +380,20 @@ Promise.all([
     })
 ])
     .then(([districtData, metricsData]) => {
-
         const metricsByDistrict = {};
         metricsData.forEach(row => {
             metricsByDistrict[Number(row.district)] = row;
         });
+        districtMetrics = metricsData;
+        districtMetricsById = metricsByDistrict;
+
+        const maxDistrictMetric = d3.max(metricsData, getDistrictMetricValue) || 1;
+        districtColorScale = d3.scaleSequential(d3.interpolateYlGn)
+            .domain([0, maxDistrictMetric]);
+
         districtLayer = L.geoJSON(districtData, {
             interactive: true,
-            style: {
-                color: UI_COLORS.districtStroke,
-                weight: 1,
-                fillColor: UI_COLORS.districtFill,
-                fillOpacity: 0.15
-            },
+            style: getDistrictStyle,
             onEachFeature: function (feature, layer) {
                 const props = feature.properties;
                 const districtName =
@@ -298,12 +404,17 @@ Promise.all([
                     "";
                 const districtNumber = Number(districtNumberRaw);
                 const metrics = metricsByDistrict[districtNumber];
+                districtLayersById[districtNumber] = layer;
                 let popupContent = `
                 <b>${districtName}</b><br>
                 District: ${districtNumber}<br>
             `;
                 if (metrics) {
+                    const spacePerDog = getDistrictMetricValue(metrics);
                     popupContent += `
+                    <hr>
+                    <b>District Access Metric</b><br>
+                    ${DISTRICT_CHOROPLETH_LABEL}: ${spacePerDog.toFixed(1)} m²<br>
                     <hr>
                     <b>Dog Statistics</b><br>
                     Registered dogs: ${metrics.dog_count}<br>
@@ -328,45 +439,22 @@ Promise.all([
                 }
                 layer.bindPopup(popupContent);
                 layer.on("mouseover", function () {
-                    layer.setStyle({
-                        weight: 3,
-                        fillOpacity: 0.28
-                    });
+                    setDistrictHighlight(districtNumber, true);
                 });
                 layer.on("mouseout", function () {
-                    districtLayer.resetStyle(layer);
+                    if (activeDistrictClick !== districtNumber) {
+                        setDistrictHighlight(districtNumber, false);
+                    }
                 });
                 layer.on("click", function () {
-
-                    // If they click the exact same district again, turn the filter OFF
-                    if (activeDistrictClick === districtNumber) {
-                        activeDistrictClick = null;
-
-                        // Reset all D3 dots back to normal
-                        d3.selectAll(".dot")
-                            .transition().duration(300) // Smooth animation!
-                            .style("opacity", 0.8)
-                            .attr("r", 6)
-                            .style("pointer-events", "all")
-                            .style("stroke-width", d => (d.has_water == true || d.has_water === 'True') ? 2.5 : 1);
-
-                    } else {
-                        // Turn the filter ON for the newly clicked district
-                        activeDistrictClick = districtNumber;
-
-                        // Fade out dots from other districts, enlarge the matching ones
-                        d3.selectAll(".dot")
-                            .transition().duration(300)
-                            .style("opacity", d => parseInt(d.district) === districtNumber ? 1 : 0.05)
-                            .attr("r", d => parseInt(d.district) === districtNumber ? 9 : 4)
-                            .style("pointer-events", d => parseInt(d.district) === districtNumber ? "all" : "none")
-                            .style("stroke-width", d => parseInt(d.district) === districtNumber ? 2 : 0);
-                    }
+                    toggleActiveDistrictSelection(districtNumber);
                 });
             }
         }).addTo(map);
         districtLayer.bringToBack();
         map.fitBounds(districtLayer.getBounds());
+        updateLegend();
+        renderActiveChart();
     })
     .catch(error => console.error("Error loading districts or metrics:", error));
 
@@ -593,6 +681,98 @@ function drawScatterplot(data, markers) {
                 linkedMarker.setStyle({color: UI_COLORS.mapOutline, weight: 1});
                 linkedMarker.closePopup();
             }
+        });
+}
+
+function drawDistrictScatterplot(data) {
+    const container = document.getElementById('scatterplot');
+    const margin = {top: 20, right: 20, bottom: 55, left: 72};
+    const outerWidth = container.clientWidth || 400;
+    const width = Math.max(outerWidth - margin.left - margin.right, 220);
+    const height = 400 - margin.top - margin.bottom;
+
+    d3.select('#scatterplot').selectAll('*').remove();
+
+    const plotData = data
+        .filter(d => Number.isFinite(Number(d.dog_count)) && Number.isFinite(Number(d.total_zone_area_m2)))
+        .map(d => ({
+            ...d,
+            district: Number(d.district),
+            dog_count: Number(d.dog_count),
+            total_zone_area_m2: Number(d.total_zone_area_m2)
+        }))
+        .filter(d => !isNaN(d.district));
+
+    const svg = d3.select('#scatterplot')
+        .append('svg')
+        .attr('width', outerWidth)
+        .attr('height', height + margin.top + margin.bottom)
+        .append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+    const xScale = d3.scaleLinear()
+        .domain([0, d3.max(plotData, d => d.dog_count) * 1.08])
+        .range([0, width]);
+
+    const yScale = d3.scaleLinear()
+        .domain([0, d3.max(plotData, d => d.total_zone_area_m2) * 1.08])
+        .range([height, 0]);
+
+    svg.append('g')
+        .attr('transform', `translate(0,${height})`)
+        .call(d3.axisBottom(xScale).ticks(5, '~s'));
+
+    svg.append('g')
+        .call(d3.axisLeft(yScale).ticks(5, '~s'));
+
+    svg.append('text')
+        .attr('x', width / 2)
+        .attr('y', height + 42)
+        .style('text-anchor', 'middle')
+        .text('Registered dogs');
+
+    svg.append('text')
+        .attr('transform', 'rotate(-90)')
+        .attr('y', -50)
+        .attr('x', -height / 2)
+        .style('text-anchor', 'middle')
+        .text('Total dog-zone area (m²)');
+
+    svg.selectAll('.district-dot')
+        .data(plotData)
+        .enter()
+        .append('circle')
+        .attr('class', 'dot district-dot')
+        .attr('id', d => `district-dot-${d.district}`)
+        .attr('cx', d => xScale(d.dog_count))
+        .attr('cy', d => yScale(d.total_zone_area_m2))
+        .attr('r', 7)
+        .style('fill', d => getDistrictFillColor(d))
+        .style('opacity', 0.88)
+        .style('stroke', UI_COLORS.mapOutline)
+        .style('stroke-width', 1.2)
+        .on('mouseover', function (event, d) {
+            d3.select(this)
+                .style('opacity', 1)
+                .attr('r', 10)
+                .style('stroke', UI_COLORS.hoverHighlight)
+                .style('stroke-width', 3);
+
+            setDistrictHighlight(d.district, true);
+        })
+        .on('mouseout', function (event, d) {
+            d3.select(this)
+                .style('opacity', activeDistrictClick === d.district ? 1 : 0.88)
+                .attr('r', activeDistrictClick === d.district ? 10 : 7)
+                .style('stroke', activeDistrictClick === d.district ? UI_COLORS.hoverHighlight : UI_COLORS.mapOutline)
+                .style('stroke-width', activeDistrictClick === d.district ? 3 : 1.2);
+
+            if (activeDistrictClick !== d.district) {
+                setDistrictHighlight(d.district, false);
+            }
+        })
+        .on('click', function (event, d) {
+            toggleActiveDistrictSelection(d.district);
         });
 }
 
