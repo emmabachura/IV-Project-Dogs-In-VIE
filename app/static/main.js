@@ -504,7 +504,7 @@ fetch('/api/zones')
 function drawScatterplot(data, markers) {
     // 1. Set up dimensions
     const container = document.getElementById("scatterplot");
-    const margin = {top: 20, right: 20, bottom: 50, left: 50};
+    const margin = {top: 20, right: 20, bottom: 64, left: 74};
     const outerWidth = container.clientWidth || 400;
     const width = Math.max(outerWidth - margin.left - margin.right, 220);
     const height = 400 - margin.top - margin.bottom;
@@ -540,14 +540,14 @@ function drawScatterplot(data, markers) {
     // Axis Labels
     svg.append("text")
         .attr("x", width / 2)
-        .attr("y", height + 40)
+        .attr("y", height + 52)
         .style("text-anchor", "middle")
         .text("Park Area (m²) - Log Scale");
 
     // CHANGED: Updated Y-Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", -40)
+        .attr("y", -56)
         .attr("x", -height / 2)
         .style("text-anchor", "middle")
         .text("Total Registered Dogs in District");
