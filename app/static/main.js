@@ -128,7 +128,7 @@ function updateLegend() {
     if (isHeatmapVisible) {
         const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 0;
 
-        legendDescription.textContent = 'Green tones show stronger infrastructure scores across sub-districts.';
+        legendDescription.textContent = 'Darker green tones show stronger infrastructure scores across sub-districts.';
         legendContent.innerHTML = `
             <div class="legend-group">
                 <div class="legend-group-title">Heatmap Scale</div>
@@ -304,6 +304,12 @@ Promise.all([
             `;
                 if (metrics) {
                     popupContent += `
+                    <hr>
+                    <b>District Score</b><br>
+                    Overall score: ${metrics.district_score.toFixed(1)} / 100<br>
+                    Infrastructure score: ${metrics.infrastructure_component_score.toFixed(1)} / 100<br>
+                    Dog pressure score: ${metrics.dog_pressure_component_score.toFixed(1)} / 100<br>
+                    Effective dog demand: ${Math.round(metrics.effective_dog_count).toLocaleString()}<br>
                     <hr>
                     <b>Dog Statistics</b><br>
                     Registered dogs: ${metrics.dog_count}<br>
@@ -499,7 +505,7 @@ fetch('/api/zones')
 function drawScatterplot(data, markers) {
     // 1. Set up dimensions
     const container = document.getElementById("scatterplot");
-    const margin = {top: 20, right: 20, bottom: 50, left: 50};
+    const margin = {top: 20, right: 20, bottom: 64, left: 74};
     const outerWidth = container.clientWidth || 400;
     const width = Math.max(outerWidth - margin.left - margin.right, 220);
     const height = 400 - margin.top - margin.bottom;
@@ -535,14 +541,14 @@ function drawScatterplot(data, markers) {
     // Axis Labels
     svg.append("text")
         .attr("x", width / 2)
-        .attr("y", height + 40)
+        .attr("y", height + 52)
         .style("text-anchor", "middle")
         .text("Park Area (m²) - Log Scale");
 
     // CHANGED: Updated Y-Axis Label
     svg.append("text")
         .attr("transform", "rotate(-90)")
-        .attr("y", -40)
+        .attr("y", -56)
         .attr("x", -height / 2)
         .style("text-anchor", "middle")
         .text("Total Registered Dogs in District");

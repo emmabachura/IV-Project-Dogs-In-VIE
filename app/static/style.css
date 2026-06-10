@@ -57,7 +57,7 @@ body {
 .dashboard-layout {
 	display: grid;
 	grid-template-columns: minmax(420px, 1.05fr) minmax(360px, 0.95fr);
-	gap: 24px;
+	gap: 18px;
 	align-items: stretch;
 	max-width: 1400px;
 	margin: 0 auto;
@@ -73,18 +73,18 @@ body {
 }
 
 .map-panel {
-	min-height: 620px;
+	min-height: 560px;
 	overflow: hidden;
 }
 
 .dashboard-panel {
-	padding: 20px;
+	padding: 18px;
 }
 
 #sidebar {
 	display: flex;
 	flex-direction: column;
-	gap: 18px;
+	gap: 14px;
 	min-width: 0;
 }
 
@@ -104,7 +104,7 @@ body {
 
 #scatterplot {
 	width: 100%;
-	min-height: 420px;
+	min-height: 360px;
 }
 
 #scatterplot svg {
@@ -171,9 +171,9 @@ body {
 
 .legend-panel {
 	border-top: 1px solid rgba(27, 67, 50, 0.12);
-	padding-top: 18px;
+	padding-top: 14px;
 	display: grid;
-	gap: 14px;
+	gap: 12px;
 }
 
 .legend-header h3 {
@@ -195,7 +195,7 @@ body {
 
 .legend-group {
 	display: grid;
-	gap: 10px;
+	gap: 8px;
 }
 
 .legend-group-title {
@@ -268,8 +268,8 @@ body {
 
 .filter-panel {
 	max-width: 1400px;
-	margin: 14px auto 0;
-	padding: 14px 18px;
+	margin: 12px auto 0;
+	padding: 12px 16px;
 	box-shadow: var(--shadow-subtle);
 }
 
@@ -282,15 +282,15 @@ body {
 
 .filter-grid {
 	display: grid;
-	grid-template-columns: repeat(3, minmax(160px, 1fr));
-	gap: 14px;
-	margin-top: 14px;
+	grid-template-columns: repeat(3, minmax(140px, 1fr));
+	gap: 10px;
+	margin-top: 10px;
 	align-items: end;
 }
 
 .filter-field {
 	display: grid;
-	gap: 6px;
+	gap: 4px;
 }
 
 .filter-field label {
@@ -307,7 +307,7 @@ body {
 	background: #ffffff;
 	color: var(--text-strong);
 	font: inherit;
-	padding: 10px 12px;
+	padding: 9px 12px;
 	box-shadow: inset 0 1px 2px rgba(31, 36, 48, 0.04);
 }
 
@@ -321,7 +321,7 @@ body {
 }
 
 #area-filter-summary {
-	margin: 8px 0 0;
+	margin: 6px 0 0;
 	color: var(--text-muted);
 	font-size: 0.88rem;
 }
