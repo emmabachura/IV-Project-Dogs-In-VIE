@@ -14,6 +14,30 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
 DISTRICTS_SHAPEFILE = PROJECT_ROOT / "data" / "raw" / "Zählbezirk" / "ZAEHLBEZIRKOGDPolygon.shp"
 
+SIZE_WEIGHTS = {
+    "small_dog_count": 1.0,
+    "medium_dog_count": 1.15,
+    "large_dog_count": 1.35,
+    "unknown_dog_count": 1.1,
+}
+
+
+def min_max_scale(series):
+    """Scale a numeric series to the range 0-100."""
+    numeric = pd.to_numeric(series, errors="coerce").fillna(0)
+    min_value = numeric.min()
+    max_value = numeric.max()
+
+    if pd.isna(min_value) or pd.isna(max_value) or min_value == max_value:
+        return pd.Series(50.0, index=series.index)
+
+    return ((numeric - min_value) / (max_value - min_value)) * 100
+
+
+def compute_effective_dog_count(df):
+    """Weight dog counts by size so larger dogs contribute slightly more demand."""
+    return sum(df[column] * weight for column, weight in SIZE_WEIGHTS.items())
+
 
 def engineer_features():
     """
@@ -134,8 +158,6 @@ def engineer_features():
     final_df = pd.merge(dogs_per_district, zones_per_district, on="district", how="left").fillna(0)
     final_df["space_per_dog_m2"] = final_df["total_zone_area_m2"] / final_df["dog_count"]
 
-    final_df.to_json(PROCESSED_DIR / "district_metrics.json", orient="records")
-
     zb_district_col = "ZBEZ_right" if "ZBEZ_right" in zones_with_districts.columns else "ZBEZ"
     zb_zones = (
         zones_with_districts
@@ -149,6 +171,7 @@ def engineer_features():
     )
 
     zb_zones.rename(columns={zb_district_col: "ZBEZ"}, inplace=True)
+    zb_zones["ZBEZ"] = pd.to_numeric(zb_zones["ZBEZ"], errors="coerce")
     zb_zones["infra_score"] = (
             (zb_zones["zone_count"] * 25) +
             (zb_zones["fenced_count"] * 15) +
@@ -157,6 +180,47 @@ def engineer_features():
     )
 
     zb_zones["infra_rank"] = zb_zones["infra_score"].rank(ascending=False, method="min")
+
+    district_subdistricts = (
+        districts_gdf[["BEZNR", "ZBEZ"]]
+        .drop_duplicates()
+        .rename(columns={"BEZNR": "district"})
+    )
+    district_subdistricts["district"] = pd.to_numeric(district_subdistricts["district"], errors="coerce")
+    district_subdistricts["ZBEZ"] = pd.to_numeric(district_subdistricts["ZBEZ"], errors="coerce")
+
+    district_subdistrict_scores = pd.merge(
+        district_subdistricts,
+        zb_zones[["ZBEZ", "infra_score", "zone_count"]],
+        on="ZBEZ",
+        how="left"
+    ).fillna({"infra_score": 0, "zone_count": 0})
+
+    district_score_components = (
+        district_subdistrict_scores
+        .groupby("district", as_index=False)
+        .agg(
+            district_avg_infra_score=("infra_score", "mean"),
+            subdistrict_count=("ZBEZ", "count"),
+            active_subdistrict_count=("zone_count", lambda x: (x > 0).sum())
+        )
+    )
+
+    final_df["effective_dog_count"] = compute_effective_dog_count(final_df)
+    final_df = pd.merge(final_df, district_score_components, on="district", how="left").fillna({
+        "district_avg_infra_score": 0,
+        "subdistrict_count": 0,
+        "active_subdistrict_count": 0,
+    })
+
+    final_df["infrastructure_component_score"] = min_max_scale(final_df["district_avg_infra_score"])
+    final_df["dog_pressure_component_score"] = 100 - min_max_scale(final_df["effective_dog_count"])
+    final_df["district_score"] = (
+        (final_df["infrastructure_component_score"] * 0.65) +
+        (final_df["dog_pressure_component_score"] * 0.35)
+    )
+
+    final_df.to_json(PROCESSED_DIR / "district_metrics.json", orient="records")
 
     zb_zones.to_json(PROCESSED_DIR / "zaehlbezirk_metrics.json", orient="records")
 

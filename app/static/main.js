@@ -305,6 +305,11 @@ Promise.all([
                 if (metrics) {
                     popupContent += `
                     <hr>
+                    <b>District Score</b><br>
+                    Overall score: ${metrics.district_score.toFixed(1)} / 100<br>
+                    Average sub-district infrastructure: ${metrics.district_avg_infra_score.toFixed(1)}<br>
+                    Effective dog demand: ${Math.round(metrics.effective_dog_count).toLocaleString()}<br>
+                    <hr>
                     <b>Dog Statistics</b><br>
                     Registered dogs: ${metrics.dog_count}<br>
                     Small dogs: ${metrics.small_dog_count} (${metrics.small_dog_percent.toFixed(1)}%)<br>
