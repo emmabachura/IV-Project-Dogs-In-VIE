@@ -78,9 +78,9 @@ function getZoneTypePresentation(zoneType) {
     };
 }
 
-function matchesZoneFilters(park, selectedMaxArea) {
+function matchesZoneFilters(park, selectedMinArea) {
     const area = parseFloat(park.area_m2);
-    if (!(area <= selectedMaxArea)) {
+    if (!(area >= selectedMinArea)) {
         return false;
     }
 
@@ -451,16 +451,16 @@ fetch('/api/zones')
         areaSlider.min = 0;
         areaSlider.max = uniqueAreaValues.length - 1;
         areaSlider.step = 1;
-        areaSlider.value = uniqueAreaValues.length - 1;
+        areaSlider.value = 0;
 
         function updateAreaFilter() {
             const selectedIndex = Number(areaSlider.value);
-            const selectedMaxArea = uniqueAreaValues[selectedIndex];
+            const selectedMinArea = uniqueAreaValues[selectedIndex];
 
             let visibleCount = 0;
 
             validData.forEach(park => {
-            const isVisible = matchesZoneFilters(park, selectedMaxArea);
+            const isVisible = matchesZoneFilters(park, selectedMinArea);
                 const marker = leafletMarkers[park.object_id];
 
                 if (marker) {
@@ -484,7 +484,7 @@ fetch('/api/zones')
             });
 
             areaSummary.textContent =
-                `${visibleCount} of ${validData.length} dog zones match the current filters and are ${selectedMaxArea.toLocaleString()} m² or smaller.`;
+                `${visibleCount} of ${validData.length} dog zones match the current filters and are ${selectedMinArea.toLocaleString()} m² or larger.`;
         }
 
         areaSlider.addEventListener("input", updateAreaFilter);
