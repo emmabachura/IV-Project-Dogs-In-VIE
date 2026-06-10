@@ -128,7 +128,7 @@ function updateLegend() {
     if (isHeatmapVisible) {
         const maxScore = d3.max(zaehlbezirkMetrics, d => Number(d.infra_score)) || 0;
 
-        legendDescription.textContent = 'Green tones show stronger infrastructure scores across sub-districts.';
+        legendDescription.textContent = 'Darker green tones show stronger infrastructure scores across sub-districts.';
         legendContent.innerHTML = `
             <div class="legend-group">
                 <div class="legend-group-title">Heatmap Scale</div>
